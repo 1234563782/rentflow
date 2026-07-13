@@ -1,0 +1,82 @@
+package com.rentflow;
+
+import com.rentflow.catalog.api.AvailabilityRequest;
+import com.rentflow.catalog.api.CatalogQuery;
+import com.rentflow.catalog.api.CategoryView;
+import com.rentflow.catalog.api.ProductDetail;
+import com.rentflow.catalog.api.ProductPage;
+import com.rentflow.catalog.api.ProductSummary;
+import com.rentflow.inventory.api.AvailabilityQuery;
+import com.rentflow.inventory.api.AvailabilityResult;
+import com.rentflow.shared.pagination.PageQuery;
+import com.rentflow.shared.time.UtcTimes;
+import jakarta.validation.Valid;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.time.OffsetDateTime;
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/v1")
+public class CatalogHttpController {
+    private final CatalogQuery catalogQuery;
+    private final AvailabilityQuery availabilityQuery;
+
+    public CatalogHttpController(CatalogQuery catalogQuery, AvailabilityQuery availabilityQuery) {
+        this.catalogQuery = catalogQuery;
+        this.availabilityQuery = availabilityQuery;
+    }
+
+    @GetMapping("/categories")
+    public List<CategoryView> listCategories() {
+        return catalogQuery.listCategories();
+    }
+
+    @GetMapping("/products")
+    public ProductPage searchProducts(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String categoryId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime startAt,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime endAt,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        if ((startAt == null) != (endAt == null)) {
+            throw new IllegalArgumentException("startAt and endAt must be supplied together");
+        }
+        ProductPage result = catalogQuery.searchProducts(keyword, categoryId, new PageQuery(page, size));
+        if (startAt == null) {
+            return result;
+        }
+        List<ProductSummary> items = result.items().stream()
+                .map(product -> product.withAvailableCount(availabilityQuery.search(
+                        product.productId(),
+                        UtcTimes.toInstant(startAt),
+                        UtcTimes.toInstant(endAt)
+                ).availableCount()))
+                .toList();
+        return new ProductPage(items, result.page(), result.size(), result.totalElements(), result.totalPages());
+    }
+
+    @GetMapping("/products/{productId}")
+    public ProductDetail getProduct(@PathVariable String productId) {
+        return catalogQuery.requireProduct(productId);
+    }
+
+    @PostMapping("/availability/search")
+    public AvailabilityResult searchAvailability(@Valid @RequestBody AvailabilityRequest request) {
+        catalogQuery.requireProduct(request.productId());
+        return availabilityQuery.search(
+                request.productId(),
+                UtcTimes.toInstant(request.startAt()),
+                UtcTimes.toInstant(request.endAt())
+        );
+    }
+}

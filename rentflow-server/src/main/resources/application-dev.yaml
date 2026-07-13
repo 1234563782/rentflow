@@ -1,0 +1,6 @@
+rentflow:
+  demo-user:
+    username: demo
+    password: ${RENTFLOW_DEMO_PASSWORD:}
+    nickname: Demo User
+    timezone: Asia/Shanghai

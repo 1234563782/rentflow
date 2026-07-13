@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.rentflow.inventory.infrastructure.InventoryLockMapper">
+    <select id="lockAvailableCandidate" resultType="com.rentflow.inventory.infrastructure.EquipmentCandidate">
+        SELECT eu.id AS equipment_unit_id, eu.display_code
+        FROM equipment_units eu
+        WHERE eu.product_id = #{productId}
+          AND eu.status = 'AVAILABLE'
+          AND NOT EXISTS (
+              SELECT 1
+              FROM inventory_reservations r
+              WHERE r.equipment_unit_id = eu.id
+                AND r.status = 'ACTIVE'
+                AND r.expires_at &gt; CURRENT_TIMESTAMP(6)
+                AND r.start_at &lt; #{endAt}
+                AND r.end_at &gt; #{startAt}
+          )
+          AND NOT EXISTS (
+              SELECT 1
+              FROM rental_orders o
+              WHERE o.equipment_unit_id = eu.id
+                AND o.status = 'CREATED'
+                AND o.start_at &lt; #{endAt}
+                AND o.end_at &gt; #{startAt}
+          )
+        ORDER BY eu.id ASC
+        LIMIT 1
+        FOR UPDATE
+    </select>
+
+    <select id="countConflictsAfterLock" resultType="int">
+        SELECT (
+            SELECT COUNT(*)
+            FROM inventory_reservations r
+            WHERE r.equipment_unit_id = #{equipmentUnitId}
+              AND r.status = 'ACTIVE'
+              AND r.expires_at &gt; CURRENT_TIMESTAMP(6)
+              AND r.start_at &lt; #{endAt}
+              AND r.end_at &gt; #{startAt}
+        ) + (
+            SELECT COUNT(*)
+            FROM rental_orders o
+            WHERE o.equipment_unit_id = #{equipmentUnitId}
+              AND o.status = 'CREATED'
+              AND o.start_at &lt; #{endAt}
+              AND o.end_at &gt; #{startAt}
+        )
+    </select>
+</mapper>

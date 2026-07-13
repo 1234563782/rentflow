@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.rentflow.pricing.infrastructure.QuoteMapper">
+    <insert id="insert">
+        INSERT INTO rental_quotes (
+            id, user_id, product_id, start_at, end_at, billing_days, currency,
+            pricing_version, pricing_rule, daily_rate, rental_amount,
+            deposit_amount, total_amount, rounding_mode, price_snapshot, expires_at
+        ) VALUES (
+            #{id}, #{userId}, #{productId}, #{startAt}, #{endAt}, #{billingDays}, #{currency},
+            #{pricingVersion}, #{pricingRule}, #{dailyRate}, #{rentalAmount},
+            #{depositAmount}, #{totalAmount}, #{roundingMode}, #{priceSnapshot}, #{expiresAt}
+        )
+    </insert>
+
+    <select id="lockById" resultType="com.rentflow.pricing.api.LockedQuote">
+        SELECT q.id AS quote_id,
+               q.user_id,
+               q.product_id,
+               q.start_at,
+               q.end_at,
+               q.billing_days,
+               q.currency,
+               q.pricing_version,
+               q.pricing_rule,
+               q.daily_rate,
+               q.rental_amount,
+               q.deposit_amount,
+               q.total_amount,
+               q.rounding_mode,
+               q.price_snapshot,
+               q.expires_at,
+               CURRENT_TIMESTAMP(6) AS database_now
+        FROM rental_quotes q
+        WHERE q.id = #{quoteId}
+        FOR UPDATE
+    </select>
+</mapper>

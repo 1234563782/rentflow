@@ -1,0 +1,12 @@
+.env
+*.pem
+*.key
+.idea/
+.vscode/
+.DS_Store
+
+rentflow-server/target/
+rentflow-web/node_modules/
+rentflow-web/dist/
+rentflow-web/test-results/
+rentflow-web/playwright-report/

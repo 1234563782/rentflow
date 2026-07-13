@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.rentflow.ordering.infrastructure.OrderMapper">
+    <sql id="orderColumns">
+        o.id,
+        o.user_id,
+        o.product_id,
+        o.equipment_unit_id,
+        o.source_reservation_id,
+        o.status,
+        o.start_at,
+        o.end_at,
+        o.product_name,
+        o.product_model,
+        o.equipment_display_code,
+        o.currency,
+        o.pricing_version,
+        o.pricing_rule,
+        o.billing_days,
+        o.daily_rate,
+        o.rental_amount,
+        o.deposit_amount,
+        o.total_amount,
+        o.rounding_mode,
+        o.created_at
+    </sql>
+
+    <insert id="insertIdempotency">
+        INSERT IGNORE INTO order_idempotency (
+            id, user_id, endpoint, idempotency_key, request_digest, status
+        ) VALUES (
+            #{id}, #{userId}, #{endpoint}, #{idempotencyKey}, #{requestDigest}, 'PROCESSING'
+        )
+    </insert>
+
+    <select id="lockIdempotency" resultType="com.rentflow.ordering.infrastructure.OrderIdempotencyRow">
+        SELECT id, request_digest, status, response_http_status,
+               response_code, response_body, resource_id
+        FROM order_idempotency
+        WHERE user_id = #{userId}
+          AND endpoint = #{endpoint}
+          AND idempotency_key = #{idempotencyKey}
+        FOR UPDATE
+    </select>
+
+    <update id="completeIdempotency">
+        UPDATE order_idempotency
+        SET status = 'COMPLETED',
+            response_http_status = #{httpStatus},
+            response_code = #{responseCode},
+            response_body = #{responseBody},
+            resource_id = #{resourceId},
+            completed_at = CURRENT_TIMESTAMP(6)
+        WHERE id = #{id} AND status = 'PROCESSING'
+    </update>
+
+    <update id="failIdempotency">
+        UPDATE order_idempotency
+        SET status = 'FAILED',
+            response_http_status = #{httpStatus},
+            response_code = #{responseCode},
+            response_body = #{responseBody},
+            completed_at = CURRENT_TIMESTAMP(6)
+        WHERE id = #{id} AND status = 'PROCESSING'
+    </update>
+
+    <insert id="insertOrder">
+        INSERT INTO rental_orders (
+            id, user_id, product_id, equipment_unit_id, source_reservation_id,
+            status, start_at, end_at, product_name, product_model,
+            equipment_display_code, currency, pricing_version, pricing_rule,
+            billing_days, daily_rate, rental_amount, deposit_amount,
+            total_amount, rounding_mode, price_snapshot
+        ) VALUES (
+            #{id}, #{reservation.userId}, #{reservation.productId},
+            #{reservation.equipmentUnitId}, #{reservation.reservationId},
+            'CREATED', #{reservation.startAt}, #{reservation.endAt},
+            #{productName}, #{productModel}, #{reservation.equipmentDisplayCode},
+            #{reservation.currency}, #{reservation.pricingVersion}, #{reservation.pricingRule},
+            #{reservation.billingDays}, #{reservation.dailyRate}, #{reservation.rentalAmount},
+            #{reservation.depositAmount}, #{reservation.totalAmount},
+            #{reservation.roundingMode}, #{reservation.priceSnapshot}
+        )
+    </insert>
+
+    <insert id="insertInitialHistory">
+        INSERT INTO order_status_history (id, order_id, from_status, to_status, reason)
+        VALUES (#{id}, #{orderId}, NULL, 'CREATED', 'ORDER_CREATED')
+    </insert>
+
+    <select id="findById" resultType="com.rentflow.ordering.infrastructure.OrderRow">
+        SELECT <include refid="orderColumns"/>
+        FROM rental_orders o
+        WHERE o.id = #{orderId}
+    </select>
+
+    <select id="listForUser" resultType="com.rentflow.ordering.infrastructure.OrderRow">
+        SELECT <include refid="orderColumns"/>
+        FROM rental_orders o
+        WHERE o.user_id = #{userId}
+        <if test="status != null">
+            AND o.status = #{status}
+        </if>
+        ORDER BY o.created_at DESC, o.id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="countForUser" resultType="long">
+        SELECT COUNT(*)
+        FROM rental_orders o
+        WHERE o.user_id = #{userId}
+        <if test="status != null">
+            AND o.status = #{status}
+        </if>
+    </select>
+
+    <select id="listHistory" resultType="com.rentflow.ordering.infrastructure.OrderHistoryRow">
+        SELECT from_status, to_status, reason, created_at
+        FROM order_status_history
+        WHERE order_id = #{orderId}
+        ORDER BY created_at ASC, id ASC
+    </select>
+</mapper>

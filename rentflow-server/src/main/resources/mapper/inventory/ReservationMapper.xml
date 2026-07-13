@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.rentflow.inventory.infrastructure.ReservationMapper">
+    <sql id="reservationColumns">
+        r.id,
+        r.user_id,
+        r.product_id,
+        r.equipment_unit_id,
+        eu.display_code AS equipment_display_code,
+        r.source_quote_id,
+        r.start_at,
+        r.end_at,
+        r.expires_at,
+        r.status,
+        CASE
+            WHEN r.status = 'ACTIVE' AND r.expires_at &lt;= CURRENT_TIMESTAMP(6) THEN 'EXPIRED'
+            ELSE r.status
+        END AS effective_status,
+        r.currency,
+        r.pricing_version,
+        r.pricing_rule,
+        r.billing_days,
+        r.daily_rate,
+        r.rental_amount,
+        r.deposit_amount,
+        r.total_amount,
+        r.rounding_mode
+    </sql>
+
+    <insert id="insertIdempotency">
+        INSERT IGNORE INTO reservation_idempotency (
+            id, user_id, endpoint, idempotency_key, request_digest,
+            status, retain_until
+        ) VALUES (
+            #{id}, #{userId}, #{endpoint}, #{idempotencyKey}, #{requestDigest},
+            'PROCESSING', TIMESTAMPADD(HOUR, 24, CURRENT_TIMESTAMP(6))
+        )
+    </insert>
+
+    <select id="lockIdempotency" resultType="com.rentflow.inventory.infrastructure.ReservationIdempotencyRow">
+        SELECT id, request_digest, status, response_http_status,
+               response_code, response_body, resource_id
+        FROM reservation_idempotency
+        WHERE user_id = #{userId}
+          AND endpoint = #{endpoint}
+          AND idempotency_key = #{idempotencyKey}
+        FOR UPDATE
+    </select>
+
+    <update id="completeIdempotency">
+        UPDATE reservation_idempotency
+        SET status = 'COMPLETED',
+            response_http_status = #{httpStatus},
+            response_code = #{responseCode},
+            response_body = #{responseBody},
+            resource_id = #{resourceId},
+            retain_until = TIMESTAMPADD(HOUR, 24, #{reservationExpiresAt}),
+            completed_at = CURRENT_TIMESTAMP(6)
+        WHERE id = #{id} AND status = 'PROCESSING'
+    </update>
+
+    <update id="failIdempotency">
+        UPDATE reservation_idempotency
+        SET status = 'FAILED',
+            response_http_status = #{httpStatus},
+            response_code = #{responseCode},
+            response_body = #{responseBody},
+            retain_until = TIMESTAMPADD(HOUR, 24, CURRENT_TIMESTAMP(6)),
+            completed_at = CURRENT_TIMESTAMP(6)
+        WHERE id = #{id} AND status = 'PROCESSING'
+    </update>
+
+    <select id="countBySourceQuote" resultType="int">
+        SELECT COUNT(*)
+        FROM inventory_reservations
+        WHERE source_quote_id = #{quoteId}
+    </select>
+
+    <insert id="ensureUserGuard">
+        INSERT IGNORE INTO reservation_user_guards (user_id)
+        VALUES (#{userId})
+    </insert>
+
+    <select id="lockUserGuard" resultType="string">
+        SELECT user_id
+        FROM reservation_user_guards
+        WHERE user_id = #{userId}
+        FOR UPDATE
+    </select>
+
+    <select id="countActiveForUser" resultType="int">
+        SELECT COUNT(*)
+        FROM inventory_reservations
+        WHERE user_id = #{userId}
+          AND status = 'ACTIVE'
+          AND expires_at &gt; CURRENT_TIMESTAMP(6)
+    </select>
+
+    <select id="computeExpiration" resultType="java.time.Instant">
+        SELECT LEAST(
+            TIMESTAMPADD(SECOND, #{ttlSeconds}, CURRENT_TIMESTAMP(6)),
+            #{startAt}
+        )
+    </select>
+
+    <insert id="insertReservation">
+        INSERT INTO inventory_reservations (
+            id, user_id, product_id, equipment_unit_id, source_quote_id,
+            start_at, end_at, expires_at, status, currency,
+            pricing_version, pricing_rule, billing_days, daily_rate,
+            rental_amount, deposit_amount, total_amount, rounding_mode, price_snapshot
+        ) VALUES (
+            #{id}, #{userId}, #{quote.productId}, #{equipmentUnitId}, #{quote.quoteId},
+            #{quote.startAt}, #{quote.endAt}, #{expiresAt}, 'ACTIVE', #{quote.currency},
+            #{quote.pricingVersion}, #{quote.pricingRule}, #{quote.billingDays}, #{quote.dailyRate},
+            #{quote.rentalAmount}, #{quote.depositAmount}, #{quote.totalAmount},
+            #{quote.roundingMode}, #{quote.priceSnapshot}
+        )
+    </insert>
+
+    <select id="findById" resultType="com.rentflow.inventory.infrastructure.ReservationRow">
+        SELECT <include refid="reservationColumns"/>
+        FROM inventory_reservations r
+        JOIN equipment_units eu ON eu.id = r.equipment_unit_id
+        WHERE r.id = #{reservationId}
+    </select>
+
+    <select id="lockById" resultType="com.rentflow.inventory.infrastructure.ReservationRow">
+        SELECT <include refid="reservationColumns"/>
+        FROM inventory_reservations r
+        JOIN equipment_units eu ON eu.id = r.equipment_unit_id
+        WHERE r.id = #{reservationId}
+        FOR UPDATE
+    </select>
+
+    <update id="releaseActive">
+        UPDATE inventory_reservations
+        SET status = 'RELEASED',
+            released_at = CURRENT_TIMESTAMP(6)
+        WHERE id = #{reservationId}
+          AND status = 'ACTIVE'
+          AND expires_at &gt; CURRENT_TIMESTAMP(6)
+    </update>
+
+    <update id="expireActiveById">
+        UPDATE inventory_reservations
+        SET status = 'EXPIRED'
+        WHERE id = #{reservationId}
+          AND status = 'ACTIVE'
+          AND expires_at &lt;= CURRENT_TIMESTAMP(6)
+    </update>
+
+    <select id="lockExpiredBatch" resultType="com.rentflow.inventory.infrastructure.ExpiredReservation">
+        SELECT id, user_id
+        FROM inventory_reservations
+        WHERE status = 'ACTIVE'
+          AND expires_at &lt;= CURRENT_TIMESTAMP(6)
+        ORDER BY expires_at ASC, id ASC
+        LIMIT #{batchSize}
+        FOR UPDATE SKIP LOCKED
+    </select>
+
+    <update id="markExpired">
+        UPDATE inventory_reservations
+        SET status = 'EXPIRED'
+        WHERE status = 'ACTIVE'
+          AND expires_at &lt;= CURRENT_TIMESTAMP(6)
+          AND id IN
+          <foreach collection="ids" item="id" open="(" separator="," close=")">
+              #{id}
+          </foreach>
+    </update>
+
+    <select id="lockForOrder" resultType="com.rentflow.inventory.api.LockedReservationForOrder">
+        SELECT r.id AS reservation_id,
+               r.user_id,
+               r.product_id,
+               r.equipment_unit_id,
+               eu.display_code AS equipment_display_code,
+               eu.status AS equipment_status,
+               r.start_at,
+               r.end_at,
+               r.expires_at,
+               r.status,
+               CASE
+                   WHEN r.status = 'ACTIVE' AND r.expires_at &lt;= CURRENT_TIMESTAMP(6) THEN 'EXPIRED'
+                   ELSE r.status
+               END AS effective_status,
+               r.currency,
+               r.pricing_version,
+               r.pricing_rule,
+               r.billing_days,
+               r.daily_rate,
+               r.rental_amount,
+               r.deposit_amount,
+               r.total_amount,
+               r.rounding_mode,
+               r.price_snapshot,
+               CURRENT_TIMESTAMP(6) AS database_now
+        FROM inventory_reservations r
+        JOIN equipment_units eu ON eu.id = r.equipment_unit_id
+        WHERE r.id = #{reservationId}
+        FOR UPDATE
+    </select>
+
+    <update id="consumeActive">
+        UPDATE inventory_reservations
+        SET status = 'CONSUMED',
+            consumed_at = CURRENT_TIMESTAMP(6)
+        WHERE id = #{reservationId}
+          AND status = 'ACTIVE'
+          AND expires_at &gt; CURRENT_TIMESTAMP(6)
+          AND start_at &gt; CURRENT_TIMESTAMP(6)
+    </update>
+</mapper>

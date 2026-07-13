@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.rentflow.catalog.infrastructure.CatalogMapper">
+    <sql id="productFilter">
+        p.enabled = TRUE
+        <if test="categoryId != null">
+            AND p.category_id = #{categoryId}
+        </if>
+        <if test="keyword != null">
+            AND (
+                p.model = #{keyword}
+                OR MATCH(p.name, p.brand, p.model, p.description)
+                   AGAINST(#{keyword} IN NATURAL LANGUAGE MODE)
+            )
+        </if>
+    </sql>
+
+    <select id="searchProducts" resultType="com.rentflow.catalog.infrastructure.ProductRow">
+        SELECT p.id, p.category_id, p.name, p.brand, p.model, p.description,
+               p.daily_rate, p.fixed_deposit, p.pricing_version
+        FROM products p
+        WHERE <include refid="productFilter"/>
+        ORDER BY
+        <if test="keyword != null">
+            CASE WHEN p.model = #{keyword} THEN 0 ELSE 1 END ASC,
+            MATCH(p.name, p.brand, p.model, p.description)
+                AGAINST(#{keyword} IN NATURAL LANGUAGE MODE) DESC,
+        </if>
+        p.id ASC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="countProducts" resultType="long">
+        SELECT COUNT(*)
+        FROM products p
+        WHERE <include refid="productFilter"/>
+    </select>
+</mapper>
