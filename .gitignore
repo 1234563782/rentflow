@@ -12,3 +12,13 @@ rentflow-web/.pnpm-store/
 rentflow-web/dist/
 rentflow-web/test-results/
 rentflow-web/playwright-report/
+
+gearmate-agent/.venv/
+gearmate-agent/.pytest_cache/
+gearmate-agent/.mypy_cache/
+gearmate-agent/.ruff_cache/
+gearmate-agent/**/__pycache__/
+gearmate-agent/**/*.pyc
+gearmate-agent/dist/
+gearmate-agent/build/
+gearmate-agent/*.egg-info/

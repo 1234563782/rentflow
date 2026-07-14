@@ -125,10 +125,10 @@ export interface OrderDetail extends Order {
   statusHistory: OrderHistory[]
 }
 
-export interface ConversationCreated { conversationId: string }
+export interface ConversationCreated { id: string }
 export interface MessageRun {
-  messageId: string
   runId: string
+  conversationId: string
   status: string
-  eventsUrl: string
+  stopReason: string | null
 }

@@ -29,15 +29,19 @@ function textFrom(data: Record<string, unknown>) {
 
 function handleEvent(event: StreamEvent, assistantId: string) {
   if (event.id) lastEventId.value = event.id
-  if (event.type === 'message.delta') {
+  if (event.type === 'message.delta' || event.type === 'assistant.delta') {
     const target = messages.value.find((message) => message.id === assistantId)
     if (target) target.content += textFrom(event.data)
   }
+  if (event.type === 'assistant.completed') {
+    const target = messages.value.find((message) => message.id === assistantId)
+    if (target && !target.content) target.content = textFrom(event.data)
+  }
   if (event.type === 'tool.started') {
-    tools.value.push({ id: event.id, name: String(event.data.toolName || event.data.name || 'RentFlow 工具'), status: 'running' })
+    tools.value.push({ id: event.id, name: String(event.data.toolName || event.data.tool || event.data.name || 'RentFlow 工具'), status: 'running' })
   }
   if (event.type === 'tool.completed' || event.type === 'tool.failed') {
-    const toolName = String(event.data.toolName || event.data.name || '')
+    const toolName = String(event.data.toolName || event.data.tool || event.data.name || '')
     const target = [...tools.value].reverse().find((tool) => !toolName || tool.name === toolName)
     if (target) target.status = event.type === 'tool.completed' ? 'success' : 'failed'
   }
@@ -56,11 +60,12 @@ async function send() {
   tools.value = []
   scrollBottom()
   try {
-    if (!conversationId.value) conversationId.value = (await createConversation(auth.user?.timezone || 'Asia/Shanghai')).conversationId
+    if (!conversationId.value) conversationId.value = (await createConversation(auth.user?.timezone || 'Asia/Shanghai')).id
     const run = await sendMessage(conversationId.value, content)
     runId.value = run.runId
+    lastEventId.value = ''
     controller = new AbortController()
-    await streamRun(run.eventsUrl, (event) => handleEvent(event, assistantId), controller.signal, lastEventId.value || undefined)
+    await streamRun(run.runId, (event) => handleEvent(event, assistantId), controller.signal)
   } catch (error) {
     if (!(error instanceof DOMException && error.name === 'AbortError')) {
       const target = messages.value.find((message) => message.id === assistantId)
@@ -72,7 +77,7 @@ async function send() {
 
 async function stop() {
   controller?.abort()
-  if (conversationId.value && runId.value) await cancelRun(conversationId.value, runId.value).catch(() => undefined)
+  if (runId.value) await cancelRun(runId.value).catch(() => undefined)
   running.value = false
 }
 

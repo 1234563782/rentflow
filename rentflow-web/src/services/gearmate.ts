@@ -20,13 +20,13 @@ export async function createConversation(timezone: string) {
 }
 
 export async function sendMessage(conversationId: string, content: string) {
-  return jsonRequest<MessageRun>(`/api/v1/conversations/${conversationId}/messages`, {
-    method: 'POST', body: JSON.stringify({ content }),
+  return jsonRequest<MessageRun>(`/api/v1/conversations/${conversationId}/runs`, {
+    method: 'POST', body: JSON.stringify({ message: content }),
   })
 }
 
-export async function cancelRun(conversationId: string, runId: string) {
-  return jsonRequest<{ status: string }>(`/api/v1/conversations/${conversationId}/runs/${runId}/cancel`, {
+export async function cancelRun(runId: string) {
+  return jsonRequest<MessageRun>(`/api/v1/runs/${runId}/cancel`, {
     method: 'POST', body: '{}',
   })
 }
@@ -38,12 +38,12 @@ export interface StreamEvent {
 }
 
 export async function streamRun(
-  eventsUrl: string,
+  runId: string,
   onEvent: (event: StreamEvent) => void,
   signal: AbortSignal,
   lastEventId?: string,
 ) {
-  const response = await fetch(`${gearmateBaseUrl}${eventsUrl}`, {
+  const response = await fetch(`${gearmateBaseUrl}/api/v1/runs/${runId}/events`, {
     headers: headers(lastEventId ? { 'Last-Event-ID': lastEventId } : {}), signal,
   })
   if (response.status === 401) window.dispatchEvent(new CustomEvent('rentflow:unauthorized'))
