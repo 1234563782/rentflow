@@ -8,6 +8,7 @@ import com.rentflow.audit.api.AuditLogWriter;
 import com.rentflow.identity.api.CurrentUser;
 import com.rentflow.identity.api.CurrentUserProvider;
 import com.rentflow.inventory.api.CreateReservationRequest;
+import com.rentflow.inventory.api.InventoryHoldCreator;
 import com.rentflow.inventory.api.ReservationResponse;
 import com.rentflow.inventory.infrastructure.EquipmentCandidate;
 import com.rentflow.inventory.infrastructure.InventoryLockMapper;
@@ -37,7 +38,7 @@ import java.time.Instant;
 import java.util.Map;
 
 @Service
-public class ReservationApplicationService {
+public class ReservationApplicationService implements InventoryHoldCreator {
     private static final String CREATE_ENDPOINT = "POST:/api/v1/reservations";
     private final CurrentUserProvider currentUserProvider;
     private final QuoteReservationAccess quoteAccess;
@@ -142,6 +143,11 @@ public class ReservationApplicationService {
             }
             throw exception;
         }
+    }
+
+    @Override
+    public ReservationResponse createFromQuote(String idempotencyKey, String quoteId) {
+        return create(idempotencyKey, new CreateReservationRequest(quoteId));
     }
 
     @Transactional(readOnly = true)

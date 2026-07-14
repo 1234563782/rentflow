@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.rentflow.messaging.infrastructure.OutboxMapper">
+    <insert id="insert">
+        INSERT INTO outbox_events (
+            id, aggregate_type, aggregate_id, event_type, payload, correlation_id
+        ) VALUES (
+            #{id}, #{aggregateType}, #{aggregateId}, #{eventType}, #{payload}, #{correlationId}
+        )
+    </insert>
+
+    <select id="lockPendingBatch" resultType="com.rentflow.messaging.infrastructure.OutboxEventRow">
+        SELECT id, aggregate_type, aggregate_id, event_type, payload,
+               correlation_id, retry_count, created_at
+        FROM outbox_events
+        WHERE status = 'PENDING'
+          AND next_attempt_at &lt;= CURRENT_TIMESTAMP(6)
+        ORDER BY created_at ASC, id ASC
+        LIMIT #{batchSize}
+        FOR UPDATE SKIP LOCKED
+    </select>
+
+    <update id="markPublished">
+        UPDATE outbox_events
+        SET status = 'PUBLISHED',
+            published_at = CURRENT_TIMESTAMP(6),
+            last_error = NULL
+        WHERE id = #{id}
+          AND status = 'PENDING'
+    </update>
+
+    <update id="markRetry">
+        UPDATE outbox_events
+        SET retry_count = retry_count + 1,
+            next_attempt_at = TIMESTAMPADD(SECOND, #{delaySeconds}, CURRENT_TIMESTAMP(6)),
+            last_error = LEFT(#{lastError}, 512)
+        WHERE id = #{id}
+          AND status = 'PENDING'
+    </update>
+
+    <insert id="insertInbox">
+        INSERT IGNORE INTO consumer_inbox (consumer_name, event_id)
+        VALUES (#{consumerName}, #{eventId})
+    </insert>
+</mapper>

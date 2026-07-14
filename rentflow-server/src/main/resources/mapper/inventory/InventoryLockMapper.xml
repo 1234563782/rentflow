@@ -21,7 +21,7 @@
               SELECT 1
               FROM rental_orders o
               WHERE o.equipment_unit_id = eu.id
-                AND o.status = 'CREATED'
+                AND o.status = 'CONFIRMED'
                 AND o.start_at &lt; #{endAt}
                 AND o.end_at &gt; #{startAt}
           )
@@ -43,7 +43,7 @@
             SELECT COUNT(*)
             FROM rental_orders o
             WHERE o.equipment_unit_id = #{equipmentUnitId}
-              AND o.status = 'CREATED'
+              AND o.status = 'CONFIRMED'
               AND o.start_at &lt; #{endAt}
               AND o.end_at &gt; #{startAt}
         )

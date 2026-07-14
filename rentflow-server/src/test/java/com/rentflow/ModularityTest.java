@@ -16,7 +16,7 @@ class ModularityTest {
 
     @Test
     void modulesDoNotAccessOtherModulesInfrastructure() {
-        String[] modules = {"identity", "catalog", "pricing", "inventory", "ordering", "audit"};
+        String[] modules = {"identity", "catalog", "pricing", "inventory", "ordering", "audit", "messaging"};
         var classes = new ClassFileImporter().importPackages("com.rentflow");
         for (String module : modules) {
             String[] forbiddenPackages = Arrays.stream(modules)

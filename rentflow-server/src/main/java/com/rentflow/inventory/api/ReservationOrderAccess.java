@@ -6,4 +6,8 @@ public interface ReservationOrderAccess {
     Optional<LockedReservationForOrder> lockReservation(String reservationId);
 
     int consumeActive(String reservationId);
+
+    int releaseForOrder(String reservationId);
+
+    int expireForOrder(String reservationId);
 }

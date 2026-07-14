@@ -13,10 +13,15 @@ public record OrderDetailResponse(
         String productModel,
         String equipmentDisplayCode,
         String status,
+        String effectiveStatus,
         Instant startAt,
         Instant endAt,
+        Instant expiresAt,
         PriceSnapshotView priceSnapshot,
         Instant createdAt,
+        Instant confirmedAt,
+        Instant cancelledAt,
+        Instant expiredAt,
         List<OrderStatusHistoryView> statusHistory
 ) {
     public OrderDetailResponse {

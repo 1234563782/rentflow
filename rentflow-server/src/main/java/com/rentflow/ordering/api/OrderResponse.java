@@ -12,9 +12,14 @@ public record OrderResponse(
         String productModel,
         String equipmentDisplayCode,
         String status,
+        String effectiveStatus,
         Instant startAt,
         Instant endAt,
+        Instant expiresAt,
         PriceSnapshotView priceSnapshot,
-        Instant createdAt
+        Instant createdAt,
+        Instant confirmedAt,
+        Instant cancelledAt,
+        Instant expiredAt
 ) {
 }

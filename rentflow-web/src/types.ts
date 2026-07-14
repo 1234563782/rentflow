@@ -93,7 +93,7 @@ export interface Reservation {
   priceSnapshot: PriceSnapshot
 }
 
-export type OrderStatus = 'CREATED'
+export type OrderStatus = 'PENDING_CONFIRMATION' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED'
 
 export interface Order {
   orderId: string
@@ -103,10 +103,15 @@ export interface Order {
   productModel: string
   equipmentDisplayCode: string
   status: OrderStatus
+  effectiveStatus: OrderStatus
   startAt: string
   endAt: string
+  expiresAt: string
   priceSnapshot: PriceSnapshot
   createdAt: string
+  confirmedAt: string | null
+  cancelledAt: string | null
+  expiredAt: string | null
 }
 
 export interface OrderHistory {

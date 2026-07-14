@@ -10,8 +10,10 @@ public record OrderRow(
         String equipmentUnitId,
         String sourceReservationId,
         String status,
+        String effectiveStatus,
         Instant startAt,
         Instant endAt,
+        Instant expiresAt,
         String productName,
         String productModel,
         String equipmentDisplayCode,
@@ -24,6 +26,10 @@ public record OrderRow(
         BigDecimal depositAmount,
         BigDecimal totalAmount,
         String roundingMode,
-        Instant createdAt
+        Instant createdAt,
+        Instant confirmedAt,
+        Instant cancelledAt,
+        Instant expiredAt,
+        Instant databaseNow
 ) {
 }

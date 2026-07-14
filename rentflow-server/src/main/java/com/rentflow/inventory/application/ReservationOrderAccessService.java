@@ -29,4 +29,16 @@ public class ReservationOrderAccessService implements ReservationOrderAccess {
     public int consumeActive(String reservationId) {
         return reservationMapper.consumeActive(Ulid.requireValid(reservationId));
     }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public int releaseForOrder(String reservationId) {
+        return reservationMapper.releaseForOrder(Ulid.requireValid(reservationId));
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public int expireForOrder(String reservationId) {
+        return reservationMapper.expireForOrder(Ulid.requireValid(reservationId));
+    }
 }

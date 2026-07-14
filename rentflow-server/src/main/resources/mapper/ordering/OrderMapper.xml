@@ -3,6 +3,14 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.rentflow.ordering.infrastructure.OrderMapper">
+    <sql id="effectiveOrderStatus">
+        CASE
+            WHEN o.status = 'PENDING_CONFIRMATION'
+             AND o.expires_at &lt;= CURRENT_TIMESTAMP(6) THEN 'EXPIRED'
+            ELSE o.status
+        END
+    </sql>
+
     <sql id="orderColumns">
         o.id,
         o.user_id,
@@ -10,8 +18,10 @@
         o.equipment_unit_id,
         o.source_reservation_id,
         o.status,
+        <include refid="effectiveOrderStatus"/> AS effective_status,
         o.start_at,
         o.end_at,
+        o.expires_at,
         o.product_name,
         o.product_model,
         o.equipment_display_code,
@@ -24,7 +34,11 @@
         o.deposit_amount,
         o.total_amount,
         o.rounding_mode,
-        o.created_at
+        o.created_at,
+        o.confirmed_at,
+        o.cancelled_at,
+        o.expired_at,
+        CURRENT_TIMESTAMP(6) AS database_now
     </sql>
 
     <insert id="insertIdempotency">
@@ -69,25 +83,27 @@
     <insert id="insertOrder">
         INSERT INTO rental_orders (
             id, user_id, product_id, equipment_unit_id, source_reservation_id,
-            status, start_at, end_at, product_name, product_model,
+            status, start_at, end_at, expires_at, product_name, product_model,
             equipment_display_code, currency, pricing_version, pricing_rule,
             billing_days, daily_rate, rental_amount, deposit_amount,
             total_amount, rounding_mode, price_snapshot
-        ) VALUES (
-            #{id}, #{reservation.userId}, #{reservation.productId},
-            #{reservation.equipmentUnitId}, #{reservation.reservationId},
-            'CREATED', #{reservation.startAt}, #{reservation.endAt},
-            #{productName}, #{productModel}, #{reservation.equipmentDisplayCode},
-            #{reservation.currency}, #{reservation.pricingVersion}, #{reservation.pricingRule},
-            #{reservation.billingDays}, #{reservation.dailyRate}, #{reservation.rentalAmount},
-            #{reservation.depositAmount}, #{reservation.totalAmount},
-            #{reservation.roundingMode}, #{reservation.priceSnapshot}
         )
+        SELECT #{id}, r.user_id, r.product_id, r.equipment_unit_id, r.id,
+               'PENDING_CONFIRMATION', r.start_at, r.end_at, r.expires_at,
+               p.name, p.model, eu.display_code, r.currency, r.pricing_version,
+               r.pricing_rule, r.billing_days, r.daily_rate, r.rental_amount,
+               r.deposit_amount, r.total_amount, r.rounding_mode, r.price_snapshot
+        FROM inventory_reservations r
+        JOIN products p ON p.id = r.product_id
+        JOIN equipment_units eu ON eu.id = r.equipment_unit_id
+        WHERE r.id = #{reservationId}
+          AND r.status = 'ACTIVE'
+          AND r.expires_at &gt; CURRENT_TIMESTAMP(6)
     </insert>
 
-    <insert id="insertInitialHistory">
+    <insert id="insertHistory">
         INSERT INTO order_status_history (id, order_id, from_status, to_status, reason)
-        VALUES (#{id}, #{orderId}, NULL, 'CREATED', 'ORDER_CREATED')
+        VALUES (#{id}, #{orderId}, #{fromStatus}, #{toStatus}, #{reason})
     </insert>
 
     <select id="findById" resultType="com.rentflow.ordering.infrastructure.OrderRow">
@@ -96,12 +112,57 @@
         WHERE o.id = #{orderId}
     </select>
 
+    <select id="lockById" resultType="com.rentflow.ordering.infrastructure.OrderRow">
+        SELECT <include refid="orderColumns"/>
+        FROM rental_orders o
+        WHERE o.id = #{orderId}
+        FOR UPDATE
+    </select>
+
+    <update id="confirmPending">
+        UPDATE rental_orders
+        SET status = 'CONFIRMED',
+            confirmed_at = CURRENT_TIMESTAMP(6)
+        WHERE id = #{orderId}
+          AND status = 'PENDING_CONFIRMATION'
+          AND expires_at &gt; CURRENT_TIMESTAMP(6)
+          AND start_at &gt; CURRENT_TIMESTAMP(6)
+    </update>
+
+    <update id="cancelPending">
+        UPDATE rental_orders
+        SET status = 'CANCELLED',
+            cancelled_at = CURRENT_TIMESTAMP(6)
+        WHERE id = #{orderId}
+          AND status = 'PENDING_CONFIRMATION'
+          AND expires_at &gt; CURRENT_TIMESTAMP(6)
+    </update>
+
+    <update id="expirePending">
+        UPDATE rental_orders
+        SET status = 'EXPIRED',
+            expired_at = CURRENT_TIMESTAMP(6)
+        WHERE id = #{orderId}
+          AND status = 'PENDING_CONFIRMATION'
+          AND expires_at &lt;= CURRENT_TIMESTAMP(6)
+    </update>
+
+    <select id="lockExpiredBatch" resultType="com.rentflow.ordering.infrastructure.ExpiredOrder">
+        SELECT id, user_id, source_reservation_id
+        FROM rental_orders
+        WHERE status = 'PENDING_CONFIRMATION'
+          AND expires_at &lt;= CURRENT_TIMESTAMP(6)
+        ORDER BY expires_at ASC, id ASC
+        LIMIT #{batchSize}
+        FOR UPDATE SKIP LOCKED
+    </select>
+
     <select id="listForUser" resultType="com.rentflow.ordering.infrastructure.OrderRow">
         SELECT <include refid="orderColumns"/>
         FROM rental_orders o
         WHERE o.user_id = #{userId}
         <if test="status != null">
-            AND o.status = #{status}
+            AND <include refid="effectiveOrderStatus"/> = #{status}
         </if>
         ORDER BY o.created_at DESC, o.id DESC
         LIMIT #{size} OFFSET #{offset}
@@ -112,7 +173,7 @@
         FROM rental_orders o
         WHERE o.user_id = #{userId}
         <if test="status != null">
-            AND o.status = #{status}
+            AND <include refid="effectiveOrderStatus"/> = #{status}
         </if>
     </select>
 

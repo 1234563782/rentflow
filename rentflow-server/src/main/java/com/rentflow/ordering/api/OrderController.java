@@ -40,6 +40,26 @@ public class OrderController {
                 ));
     }
 
+    @PostMapping("/{orderId}/confirm")
+    public OrderResponse confirm(
+            @PathVariable String orderId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey
+    ) {
+        return deadlockRetryExecutor.execute(() ->
+                orderApplicationService.confirm(idempotencyKey, orderId)
+        );
+    }
+
+    @PostMapping("/{orderId}/cancel")
+    public OrderResponse cancel(
+            @PathVariable String orderId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey
+    ) {
+        return deadlockRetryExecutor.execute(() ->
+                orderApplicationService.cancel(idempotencyKey, orderId)
+        );
+    }
+
     @GetMapping
     public OrderPage list(
             @RequestParam(required = false) String status,

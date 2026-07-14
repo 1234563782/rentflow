@@ -5,12 +5,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rentflow.audit.api.AuditCommand;
 import com.rentflow.audit.api.AuditLogWriter;
-import com.rentflow.catalog.api.CatalogQuery;
-import com.rentflow.catalog.api.ProductSnapshot;
 import com.rentflow.identity.api.CurrentUser;
 import com.rentflow.identity.api.CurrentUserProvider;
+import com.rentflow.inventory.api.InventoryHoldCreator;
 import com.rentflow.inventory.api.LockedReservationForOrder;
 import com.rentflow.inventory.api.ReservationOrderAccess;
+import com.rentflow.inventory.api.ReservationResponse;
+import com.rentflow.messaging.api.DomainEventPublisher;
 import com.rentflow.ordering.api.CreateOrderRequest;
 import com.rentflow.ordering.api.OrderDetailResponse;
 import com.rentflow.ordering.api.OrderPage;
@@ -23,8 +24,8 @@ import com.rentflow.ordering.infrastructure.OrderMapper;
 import com.rentflow.ordering.infrastructure.OrderRow;
 import com.rentflow.pricing.api.PriceSnapshotView;
 import com.rentflow.shared.id.Ulid;
-import com.rentflow.shared.idempotency.IdempotencyKey;
 import com.rentflow.shared.idempotency.IdempotencyInProgressException;
+import com.rentflow.shared.idempotency.IdempotencyKey;
 import com.rentflow.shared.idempotency.IdempotencyProperties;
 import com.rentflow.shared.idempotency.IdempotentReplayException;
 import com.rentflow.shared.idempotency.MySqlIdempotencyMutex;
@@ -40,34 +41,45 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Supplier;
 
 @Service
 public class OrderApplicationService {
     private static final String CREATE_ENDPOINT = "POST:/api/v1/orders";
+    private static final String CONFIRM_ENDPOINT = "POST:/api/v1/orders/{orderId}/confirm";
+    private static final String CANCEL_ENDPOINT = "POST:/api/v1/orders/{orderId}/cancel";
+    private static final Set<String> STATUSES = Set.of(
+            "PENDING_CONFIRMATION", "CONFIRMED", "CANCELLED", "EXPIRED"
+    );
+
     private final CurrentUserProvider currentUserProvider;
+    private final InventoryHoldCreator holdCreator;
     private final ReservationOrderAccess reservationAccess;
-    private final CatalogQuery catalogQuery;
     private final OrderMapper orderMapper;
     private final AuditLogWriter auditLogWriter;
+    private final DomainEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
     private final MySqlIdempotencyMutex idempotencyMutex;
     private final IdempotencyProperties idempotencyProperties;
 
     public OrderApplicationService(
             CurrentUserProvider currentUserProvider,
+            InventoryHoldCreator holdCreator,
             ReservationOrderAccess reservationAccess,
-            CatalogQuery catalogQuery,
             OrderMapper orderMapper,
             AuditLogWriter auditLogWriter,
+            DomainEventPublisher eventPublisher,
             ObjectMapper objectMapper,
             MySqlIdempotencyMutex idempotencyMutex,
             IdempotencyProperties idempotencyProperties
     ) {
         this.currentUserProvider = currentUserProvider;
+        this.holdCreator = holdCreator;
         this.reservationAccess = reservationAccess;
-        this.catalogQuery = catalogQuery;
         this.orderMapper = orderMapper;
         this.auditLogWriter = auditLogWriter;
+        this.eventPublisher = eventPublisher;
         this.objectMapper = objectMapper;
         this.idempotencyMutex = idempotencyMutex;
         this.idempotencyProperties = idempotencyProperties;
@@ -76,72 +88,45 @@ public class OrderApplicationService {
     @Transactional(noRollbackFor = BusinessException.class)
     public OrderResponse create(String rawIdempotencyKey, CreateOrderRequest request) {
         CurrentUser user = currentUserProvider.requireCurrentUser();
-        IdempotencyKey idempotencyKey = new IdempotencyKey(rawIdempotencyKey);
-        String digest = RequestDigest.sha256(request, objectMapper);
-        idempotencyMutex.acquire(idempotencyScope(user.userId(), idempotencyKey.value()));
-        int inserted = orderMapper.insertIdempotency(
-                Ulid.next(),
-                user.userId(),
+        return executeIdempotently(
+                user,
+                rawIdempotencyKey,
                 CREATE_ENDPOINT,
-                idempotencyKey.value(),
-                digest
+                request,
+                "ORDER_PENDING_CREATED",
+                HttpStatus.CREATED.value(),
+                () -> createPending(user, rawIdempotencyKey, request)
         );
-        OrderIdempotencyRow idempotency = orderMapper.lockIdempotency(
-                user.userId(),
-                CREATE_ENDPOINT,
-                idempotencyKey.value()
-        ).orElseThrow(() -> new IllegalStateException("Order idempotency row was not created"));
-        if (!idempotency.requestDigest().equals(digest)) {
-            throw business(
-                    "IDEMPOTENCY_CONFLICT",
-                    "Idempotency-Key was used for a different request",
-                    HttpStatus.CONFLICT
-            );
-        }
-        if (inserted == 0) {
-            return replay(idempotency);
-        }
+    }
 
-        try {
-            OrderResponse response = createOrder(user, request);
-            if (orderMapper.completeIdempotency(
-                    idempotency.id(),
-                    HttpStatus.CREATED.value(),
-                    "ORDER_CREATED",
-                    serialize(response),
-                    response.orderId()
-            ) != 1) {
-                throw new IllegalStateException("Order idempotency completion did not affect exactly one row");
-            }
-            return response;
-        } catch (BusinessException exception) {
-            ApiErrorResponse error = new ApiErrorResponse(
-                    exception.code(),
-                    exception.getMessage(),
-                    correlationId(),
-                    exception.details()
-            );
-            auditLogWriter.write(new AuditCommand(
-                    user.userId(),
-                    "ORDER_CREATE",
-                    "ORDER",
-                    null,
-                    "FAILED",
-                    Map.of(
-                            "reservationId", request.reservationId(),
-                            "errorCode", exception.code()
-                    )
-            ));
-            if (orderMapper.failIdempotency(
-                    idempotency.id(),
-                    exception.status().value(),
-                    exception.code(),
-                    serialize(error)
-            ) != 1) {
-                throw new IllegalStateException("Order idempotency failure did not affect exactly one row");
-            }
-            throw exception;
-        }
+    @Transactional(noRollbackFor = BusinessException.class)
+    public OrderResponse confirm(String rawIdempotencyKey, String orderId) {
+        CurrentUser user = currentUserProvider.requireCurrentUser();
+        String validOrderId = Ulid.requireValid(orderId);
+        return executeIdempotently(
+                user,
+                rawIdempotencyKey,
+                CONFIRM_ENDPOINT,
+                new OrderOperationRequest(validOrderId, "CONFIRM"),
+                "ORDER_CONFIRMED",
+                HttpStatus.OK.value(),
+                () -> confirmPending(user, validOrderId)
+        );
+    }
+
+    @Transactional(noRollbackFor = BusinessException.class)
+    public OrderResponse cancel(String rawIdempotencyKey, String orderId) {
+        CurrentUser user = currentUserProvider.requireCurrentUser();
+        String validOrderId = Ulid.requireValid(orderId);
+        return executeIdempotently(
+                user,
+                rawIdempotencyKey,
+                CANCEL_ENDPOINT,
+                new OrderOperationRequest(validOrderId, "CANCEL"),
+                "ORDER_CANCELLED",
+                HttpStatus.OK.value(),
+                () -> cancelPending(user, validOrderId)
+        );
     }
 
     @Transactional(readOnly = true)
@@ -166,9 +151,7 @@ public class OrderApplicationService {
         CurrentUser user = currentUserProvider.requireCurrentUser();
         OrderRow row = orderMapper.findById(Ulid.requireValid(orderId))
                 .orElseThrow(OrderApplicationService::notFound);
-        if (!row.userId().equals(user.userId())) {
-            throw business("ACCESS_DENIED", "Access is denied", HttpStatus.FORBIDDEN);
-        }
+        requireOwner(row, user);
         List<OrderStatusHistoryView> history = orderMapper.listHistory(row.id()).stream()
                 .map(this::history)
                 .toList();
@@ -181,80 +164,220 @@ public class OrderApplicationService {
                 order.productModel(),
                 order.equipmentDisplayCode(),
                 order.status(),
+                order.effectiveStatus(),
                 order.startAt(),
                 order.endAt(),
+                order.expiresAt(),
                 order.priceSnapshot(),
                 order.createdAt(),
+                order.confirmedAt(),
+                order.cancelledAt(),
+                order.expiredAt(),
                 history
         );
     }
 
-    private OrderResponse createOrder(CurrentUser user, CreateOrderRequest request) {
-        LockedReservationForOrder reservation = reservationAccess.lockReservation(request.reservationId())
-                .orElseThrow(() -> business(
-                        "RESERVATION_NOT_FOUND",
-                        "Reservation was not found",
-                        HttpStatus.NOT_FOUND
-                ));
+    private OrderResponse createPending(CurrentUser user, String idempotencyKey, CreateOrderRequest request) {
+        ReservationResponse hold = holdCreator.createFromQuote(idempotencyKey, request.quoteId());
+        LockedReservationForOrder reservation = reservationAccess.lockReservation(hold.reservationId())
+                .orElseThrow(() -> new IllegalStateException("Created inventory hold cannot be locked"));
         if (!reservation.userId().equals(user.userId())) {
-            throw business("ACCESS_DENIED", "Access is denied", HttpStatus.FORBIDDEN);
-        }
-        if ("EXPIRED".equals(reservation.effectiveStatus())) {
-            throw business("RESERVATION_EXPIRED", "Reservation has expired", HttpStatus.CONFLICT);
-        }
-        if (!"ACTIVE".equals(reservation.status())) {
-            throw business(
-                    "RESERVATION_STATE_CONFLICT",
-                    "Reservation cannot be consumed",
-                    HttpStatus.CONFLICT
-            );
-        }
-        if (reservation.rentalStarted()) {
-            throw business(
-                    "RENTAL_ALREADY_STARTED",
-                    "Rental period has already started",
-                    HttpStatus.CONFLICT
-            );
-        }
-        if (!"AVAILABLE".equals(reservation.equipmentStatus()) || !reservation.snapshotComplete()) {
-            throw business(
-                    "RESERVATION_STATE_CONFLICT",
-                    "Reservation snapshot or equipment state is invalid",
-                    HttpStatus.CONFLICT
-            );
+            throw new IllegalStateException("Created inventory hold owner does not match current user");
         }
 
-        ProductSnapshot product = catalogQuery.requireProductSnapshot(reservation.productId());
         String orderId = Ulid.next();
-        if (orderMapper.insertOrder(new OrderInsert(
-                orderId,
-                product.name(),
-                product.model(),
-                reservation
-        )) != 1) {
-            throw new IllegalStateException("Order insert did not affect exactly one row");
+        if (orderMapper.insertOrder(new OrderInsert(orderId, reservation.reservationId())) != 1) {
+            throw new IllegalStateException("Pending order insert did not affect exactly one row");
         }
-        if (orderMapper.insertInitialHistory(Ulid.next(), orderId) != 1) {
-            throw new IllegalStateException("Order history insert did not affect exactly one row");
-        }
-        if (reservationAccess.consumeActive(reservation.reservationId()) != 1) {
-            throw new IllegalStateException("Locked active reservation could not be consumed");
-        }
-        OrderRow row = orderMapper.findById(orderId)
-                .orElseThrow(() -> new IllegalStateException("Created order cannot be reloaded"));
+        insertHistory(orderId, null, "PENDING_CONFIRMATION", "ORDER_PENDING_CREATED");
+        eventPublisher.record("ORDER", orderId, "order.pending-created", Map.of(
+                "orderId", orderId,
+                "reservationId", reservation.reservationId(),
+                "productId", reservation.productId(),
+                "equipmentUnitId", reservation.equipmentUnitId(),
+                "expiresAt", reservation.expiresAt().toString()
+        ));
         auditLogWriter.write(new AuditCommand(
                 user.userId(),
-                "ORDER_CREATED",
+                "ORDER_PENDING_CREATED",
                 "ORDER",
                 orderId,
                 "SUCCESS",
-                Map.of(
-                        "sourceReservationId", reservation.reservationId(),
-                        "productId", reservation.productId(),
-                        "equipmentUnitId", reservation.equipmentUnitId()
-                )
+                Map.of("sourceReservationId", reservation.reservationId(), "sourceQuoteId", request.quoteId())
         ));
-        return response(row);
+        return reload(orderId);
+    }
+
+    private OrderResponse confirmPending(CurrentUser user, String orderId) {
+        OrderRow order = lockOwned(orderId, user);
+        if ("CONFIRMED".equals(order.status())) {
+            return response(order);
+        }
+        if ("EXPIRED".equals(order.effectiveStatus())) {
+            convergeExpired(order, user.userId(), "confirm-check");
+            throw business("ORDER_EXPIRED", "Order confirmation window has expired", HttpStatus.CONFLICT);
+        }
+        if (!"PENDING_CONFIRMATION".equals(order.status())) {
+            throw business("ORDER_STATE_CONFLICT", "Order cannot be confirmed", HttpStatus.CONFLICT);
+        }
+
+        LockedReservationForOrder reservation = reservationAccess.lockReservation(order.sourceReservationId())
+                .orElseThrow(() -> new IllegalStateException("Order inventory hold cannot be locked"));
+        if (!"ACTIVE".equals(reservation.effectiveStatus())
+                || !"AVAILABLE".equals(reservation.equipmentStatus())
+                || !reservation.snapshotComplete()) {
+            throw business("ORDER_STATE_CONFLICT", "Order inventory hold is no longer valid", HttpStatus.CONFLICT);
+        }
+        if (reservation.rentalStarted()) {
+            throw business("RENTAL_ALREADY_STARTED", "Rental period has already started", HttpStatus.CONFLICT);
+        }
+        if (orderMapper.confirmPending(orderId) != 1) {
+            throw new IllegalStateException("Pending order could not be confirmed");
+        }
+        if (reservationAccess.consumeActive(order.sourceReservationId()) != 1) {
+            throw new IllegalStateException("Confirmed order inventory hold could not be consumed");
+        }
+        insertHistory(orderId, "PENDING_CONFIRMATION", "CONFIRMED", "ORDER_CONFIRMED");
+        eventPublisher.record("ORDER", orderId, "order.confirmed", Map.of(
+                "orderId", orderId,
+                "reservationId", order.sourceReservationId(),
+                "productId", order.productId(),
+                "equipmentUnitId", order.equipmentUnitId()
+        ));
+        auditLogWriter.write(new AuditCommand(
+                user.userId(), "ORDER_CONFIRMED", "ORDER", orderId, "SUCCESS",
+                Map.of("sourceReservationId", order.sourceReservationId())
+        ));
+        return reload(orderId);
+    }
+
+    private OrderResponse cancelPending(CurrentUser user, String orderId) {
+        OrderRow order = lockOwned(orderId, user);
+        if ("CANCELLED".equals(order.status()) || "EXPIRED".equals(order.status())) {
+            return response(order);
+        }
+        if ("EXPIRED".equals(order.effectiveStatus())) {
+            convergeExpired(order, user.userId(), "cancel-check");
+            return reload(orderId);
+        }
+        if (!"PENDING_CONFIRMATION".equals(order.status())) {
+            throw business("ORDER_STATE_CONFLICT", "Order cannot be cancelled", HttpStatus.CONFLICT);
+        }
+        reservationAccess.lockReservation(order.sourceReservationId())
+                .orElseThrow(() -> new IllegalStateException("Order inventory hold cannot be locked"));
+        if (orderMapper.cancelPending(orderId) != 1) {
+            throw new IllegalStateException("Pending order could not be cancelled");
+        }
+        if (reservationAccess.releaseForOrder(order.sourceReservationId()) != 1) {
+            throw new IllegalStateException("Cancelled order inventory hold could not be released");
+        }
+        insertHistory(orderId, "PENDING_CONFIRMATION", "CANCELLED", "USER_CANCELLED");
+        eventPublisher.record("ORDER", orderId, "order.cancelled", Map.of(
+                "orderId", orderId,
+                "reservationId", order.sourceReservationId(),
+                "reason", "USER_CANCELLED"
+        ));
+        auditLogWriter.write(new AuditCommand(
+                user.userId(), "ORDER_CANCELLED", "ORDER", orderId, "SUCCESS",
+                Map.of("sourceReservationId", order.sourceReservationId())
+        ));
+        return reload(orderId);
+    }
+
+    private void convergeExpired(OrderRow order, String userId, String source) {
+        if (!"PENDING_CONFIRMATION".equals(order.status())) {
+            return;
+        }
+        if (orderMapper.expirePending(order.id()) != 1) {
+            throw new IllegalStateException("Logically expired order could not be persisted");
+        }
+        reservationAccess.expireForOrder(order.sourceReservationId());
+        insertHistory(order.id(), "PENDING_CONFIRMATION", "EXPIRED", "CONFIRMATION_TIMEOUT");
+        eventPublisher.record("ORDER", order.id(), "order.expired", Map.of(
+                "orderId", order.id(),
+                "reservationId", order.sourceReservationId(),
+                "source", source
+        ));
+        auditLogWriter.write(new AuditCommand(
+                userId, "ORDER_EXPIRED", "ORDER", order.id(), "SUCCESS", Map.of("source", source)
+        ));
+    }
+
+    private OrderResponse executeIdempotently(
+            CurrentUser user,
+            String rawIdempotencyKey,
+            String endpoint,
+            Object request,
+            String responseCode,
+            int successHttpStatus,
+            Supplier<OrderResponse> operation
+    ) {
+        IdempotencyKey idempotencyKey = new IdempotencyKey(rawIdempotencyKey);
+        String digest = RequestDigest.sha256(request, objectMapper);
+        idempotencyMutex.acquire(idempotencyScope(user.userId(), endpoint, idempotencyKey.value()));
+        int inserted = orderMapper.insertIdempotency(
+                Ulid.next(), user.userId(), endpoint, idempotencyKey.value(), digest
+        );
+        OrderIdempotencyRow idempotency = orderMapper.lockIdempotency(
+                user.userId(), endpoint, idempotencyKey.value()
+        ).orElseThrow(() -> new IllegalStateException("Order idempotency row was not created"));
+        if (!idempotency.requestDigest().equals(digest)) {
+            throw business(
+                    "IDEMPOTENCY_CONFLICT",
+                    "Idempotency-Key was used for a different request",
+                    HttpStatus.CONFLICT
+            );
+        }
+        if (inserted == 0) {
+            return replay(idempotency);
+        }
+
+        try {
+            OrderResponse response = operation.get();
+            if (orderMapper.completeIdempotency(
+                    idempotency.id(), successHttpStatus, responseCode, serialize(response), response.orderId()
+            ) != 1) {
+                throw new IllegalStateException("Order idempotency completion did not affect exactly one row");
+            }
+            return response;
+        } catch (BusinessException exception) {
+            ApiErrorResponse error = new ApiErrorResponse(
+                    exception.code(), exception.getMessage(), correlationId(), exception.details()
+            );
+            auditLogWriter.write(new AuditCommand(
+                    user.userId(), responseCode, "ORDER", null, "FAILED",
+                    Map.of("errorCode", exception.code())
+            ));
+            if (orderMapper.failIdempotency(
+                    idempotency.id(), exception.status().value(), exception.code(), serialize(error)
+            ) != 1) {
+                throw new IllegalStateException("Order idempotency failure did not affect exactly one row");
+            }
+            throw exception;
+        }
+    }
+
+    private OrderRow lockOwned(String orderId, CurrentUser user) {
+        OrderRow row = orderMapper.lockById(orderId).orElseThrow(OrderApplicationService::notFound);
+        requireOwner(row, user);
+        return row;
+    }
+
+    private void requireOwner(OrderRow row, CurrentUser user) {
+        if (!row.userId().equals(user.userId())) {
+            throw business("ACCESS_DENIED", "Access is denied", HttpStatus.FORBIDDEN);
+        }
+    }
+
+    private OrderResponse reload(String orderId) {
+        return response(orderMapper.findById(orderId)
+                .orElseThrow(() -> new IllegalStateException("Created order cannot be reloaded")));
+    }
+
+    private void insertHistory(String orderId, String fromStatus, String toStatus, String reason) {
+        if (orderMapper.insertHistory(Ulid.next(), orderId, fromStatus, toStatus, reason) != 1) {
+            throw new IllegalStateException("Order history insert did not affect exactly one row");
+        }
     }
 
     private OrderResponse replay(OrderIdempotencyRow idempotency) {
@@ -284,8 +407,10 @@ public class OrderApplicationService {
                 row.productModel(),
                 row.equipmentDisplayCode(),
                 row.status(),
+                row.effectiveStatus(),
                 row.startAt(),
                 row.endAt(),
+                row.expiresAt(),
                 new PriceSnapshotView(
                         row.currency(),
                         row.pricingVersion(),
@@ -297,24 +422,22 @@ public class OrderApplicationService {
                         row.totalAmount().toPlainString(),
                         row.roundingMode()
                 ),
-                row.createdAt()
+                row.createdAt(),
+                row.confirmedAt(),
+                row.cancelledAt(),
+                row.expiredAt()
         );
     }
 
     private OrderStatusHistoryView history(OrderHistoryRow row) {
-        return new OrderStatusHistoryView(
-                row.fromStatus(),
-                row.toStatus(),
-                row.reason(),
-                row.createdAt()
-        );
+        return new OrderStatusHistoryView(row.fromStatus(), row.toStatus(), row.reason(), row.createdAt());
     }
 
     private String normalizeStatus(String status) {
         if (status == null || status.isBlank()) {
             return null;
         }
-        if (!"CREATED".equals(status)) {
+        if (!STATUSES.contains(status)) {
             throw new IllegalArgumentException("Unsupported order status");
         }
         return status;
@@ -342,8 +465,8 @@ public class OrderApplicationService {
         return value == null ? Ulid.next() : value;
     }
 
-    private String idempotencyScope(String userId, String idempotencyKey) {
-        return userId + "\n" + CREATE_ENDPOINT + "\n" + idempotencyKey;
+    private String idempotencyScope(String userId, String endpoint, String idempotencyKey) {
+        return userId + "\n" + endpoint + "\n" + idempotencyKey;
     }
 
     private static BusinessException notFound() {
@@ -352,5 +475,8 @@ public class OrderApplicationService {
 
     private static BusinessException business(String code, String message, HttpStatus status) {
         return new BusinessException(code, message, status);
+    }
+
+    private record OrderOperationRequest(String orderId, String operation) {
     }
 }

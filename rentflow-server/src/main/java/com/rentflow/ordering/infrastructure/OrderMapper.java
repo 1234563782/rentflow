@@ -39,9 +39,25 @@ public interface OrderMapper {
 
     int insertOrder(OrderInsert order);
 
-    int insertInitialHistory(@Param("id") String id, @Param("orderId") String orderId);
+    int insertHistory(
+            @Param("id") String id,
+            @Param("orderId") String orderId,
+            @Param("fromStatus") String fromStatus,
+            @Param("toStatus") String toStatus,
+            @Param("reason") String reason
+    );
 
     Optional<OrderRow> findById(@Param("orderId") String orderId);
+
+    Optional<OrderRow> lockById(@Param("orderId") String orderId);
+
+    int confirmPending(@Param("orderId") String orderId);
+
+    int cancelPending(@Param("orderId") String orderId);
+
+    int expirePending(@Param("orderId") String orderId);
+
+    List<ExpiredOrder> lockExpiredBatch(@Param("batchSize") int batchSize);
 
     List<OrderRow> listForUser(
             @Param("userId") String userId,

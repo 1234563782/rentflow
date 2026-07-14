@@ -67,4 +67,8 @@ public interface ReservationMapper {
     Optional<LockedReservationForOrder> lockForOrder(@Param("reservationId") String reservationId);
 
     int consumeActive(@Param("reservationId") String reservationId);
+
+    int releaseForOrder(@Param("reservationId") String reservationId);
+
+    int expireForOrder(@Param("reservationId") String reservationId);
 }

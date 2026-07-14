@@ -4,105 +4,131 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, Clock, Warning } from '@element-plus/icons-vue'
 import PriceBreakdown from '@/components/PriceBreakdown.vue'
-import { catalogApi, orderApi, reservationApi } from '@/services/api'
+import { orderApi } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
-import type { ProductDetail, Reservation } from '@/types'
+import type { Order } from '@/types'
 import { apiErrorMessage, formatDateTime, isNetworkError, newIdempotencyKey } from '@/utils'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
-const reservation = ref<Reservation>()
-const product = ref<ProductDetail>()
+const order = ref<Order>()
 const loading = ref(true)
 const submitting = ref(false)
-const releasing = ref(false)
+const cancelling = ref(false)
 const error = ref('')
 const secondsLeft = ref(0)
 let timer: number | undefined
 
-const attemptKeyName = computed(() => `rentflow.attempt.order.${route.params.reservationId}`)
-const isActive = computed(() => reservation.value?.effectiveStatus === 'ACTIVE' && secondsLeft.value > 0)
+const orderId = computed(() => String(route.params.orderId))
+const confirmKeyName = computed(() => `rentflow.attempt.confirm.${orderId.value}`)
+const cancelKeyName = computed(() => `rentflow.attempt.cancel.${orderId.value}`)
+const isPending = computed(() => order.value?.effectiveStatus === 'PENDING_CONFIRMATION' && secondsLeft.value > 0)
 const countdown = computed(() => `${Math.floor(secondsLeft.value / 60).toString().padStart(2, '0')}:${(secondsLeft.value % 60).toString().padStart(2, '0')}`)
 
 function tick() {
-  secondsLeft.value = reservation.value ? Math.max(0, Math.ceil((new Date(reservation.value.expiresAt).getTime() - Date.now()) / 1000)) : 0
+  secondsLeft.value = order.value
+    ? Math.max(0, Math.ceil((new Date(order.value.expiresAt).getTime() - Date.now()) / 1000))
+    : 0
 }
 
 async function load() {
   loading.value = true
   error.value = ''
   try {
-    reservation.value = await reservationApi.get(String(route.params.reservationId))
-    product.value = await catalogApi.product(reservation.value.productId)
+    order.value = await orderApi.get(orderId.value)
     tick()
-  } catch (cause) { error.value = apiErrorMessage(cause) }
-  finally { loading.value = false }
+  } catch (cause) {
+    error.value = apiErrorMessage(cause)
+  } finally {
+    loading.value = false
+  }
 }
 
-async function createOrder() {
-  if (!reservation.value || !isActive.value) return
+async function confirmOrder() {
+  if (!order.value || !isPending.value) return
   submitting.value = true
-  let key = sessionStorage.getItem(attemptKeyName.value)
+  let key = sessionStorage.getItem(confirmKeyName.value)
   if (!key) {
     key = newIdempotencyKey()
-    sessionStorage.setItem(attemptKeyName.value, key)
+    sessionStorage.setItem(confirmKeyName.value, key)
   }
   try {
-    const order = await orderApi.create(reservation.value.reservationId, key)
-    sessionStorage.removeItem(attemptKeyName.value)
-    ElMessage.success('订单创建成功')
-    await router.replace(`/orders/${order.orderId}`)
+    order.value = await orderApi.confirm(order.value.orderId, key)
+    sessionStorage.removeItem(confirmKeyName.value)
+    ElMessage.success('订单确认成功')
+    await router.replace(`/orders/${order.value.orderId}`)
   } catch (cause) {
     if (isNetworkError(cause)) ElMessage.warning('网络响应中断，可使用原请求安全重试')
     else ElMessage.error(apiErrorMessage(cause))
-  } finally { submitting.value = false }
+  } finally {
+    submitting.value = false
+  }
 }
 
-async function release() {
-  if (!reservation.value) return
-  await ElMessageBox.confirm('释放后需要重新获取报价和预占，确认继续？', '释放预占', { type: 'warning', confirmButtonText: '确认释放', cancelButtonText: '暂不释放' }).catch(() => false)
-    .then(async (confirmed) => {
-      if (!confirmed) return
-      releasing.value = true
-      try {
-        reservation.value = await reservationApi.release(reservation.value!.reservationId)
-        sessionStorage.removeItem(attemptKeyName.value)
-        tick()
-        ElMessage.success('预占已释放')
-      } catch (cause) { ElMessage.error(apiErrorMessage(cause)) }
-      finally { releasing.value = false }
-    })
+async function cancelOrder() {
+  if (!order.value || !isPending.value) return
+  const confirmed = await ElMessageBox.confirm(
+    '取消后设备会立即释放，订单无法再次确认。',
+    '取消待确认订单',
+    { type: 'warning', confirmButtonText: '确认取消', cancelButtonText: '继续保留' },
+  ).then(() => true).catch(() => false)
+  if (!confirmed) return
+
+  cancelling.value = true
+  let key = sessionStorage.getItem(cancelKeyName.value)
+  if (!key) {
+    key = newIdempotencyKey()
+    sessionStorage.setItem(cancelKeyName.value, key)
+  }
+  try {
+    order.value = await orderApi.cancel(order.value.orderId, key)
+    sessionStorage.removeItem(cancelKeyName.value)
+    sessionStorage.removeItem(confirmKeyName.value)
+    tick()
+    ElMessage.success('订单已取消，设备预占已释放')
+    await router.replace(`/orders/${order.value.orderId}`)
+  } catch (cause) {
+    if (isNetworkError(cause)) ElMessage.warning('网络响应中断，可使用原请求安全重试')
+    else ElMessage.error(apiErrorMessage(cause))
+  } finally {
+    cancelling.value = false
+  }
 }
 
-onMounted(() => { void load(); timer = window.setInterval(tick, 1000) })
+onMounted(() => {
+  void load()
+  timer = window.setInterval(tick, 1000)
+})
 onBeforeUnmount(() => window.clearInterval(timer))
 </script>
 
 <template>
   <section class="content-page narrow-page">
-    <el-button class="back-button" text :icon="ArrowLeft" @click="router.back()">返回</el-button>
-    <header class="page-heading"><div><span class="eyebrow">下单确认</span><h1>核对预占与价格</h1><p>订单将完整保存当前商品与价格快照。</p></div></header>
+    <el-button class="back-button" text :icon="ArrowLeft" @click="router.push('/orders')">返回订单</el-button>
+    <header class="page-heading">
+      <div><span class="eyebrow">待确认订单</span><h1>确认本次设备预订</h1><p>设备与当前价格会保留至倒计时结束。</p></div>
+    </header>
     <div v-if="loading" class="checkout-sheet"><el-skeleton animated :rows="10" /></div>
-    <div v-else-if="error" class="state-panel"><h2>预占加载失败</h2><p>{{ error }}</p><el-button @click="load">重试</el-button></div>
-    <div v-else-if="reservation" class="checkout-sheet">
-      <div class="reservation-clock" :class="{ expired: !isActive }">
-        <el-icon><component :is="isActive ? Clock : Warning" /></el-icon>
-        <div><span>{{ isActive ? '设备预占剩余' : '预占已失效' }}</span><strong>{{ isActive ? countdown : reservation.effectiveStatus }}</strong></div>
+    <div v-else-if="error" class="state-panel"><h2>订单加载失败</h2><p>{{ error }}</p><el-button @click="load">重试</el-button></div>
+    <div v-else-if="order" class="checkout-sheet">
+      <div class="reservation-clock" :class="{ expired: !isPending }">
+        <el-icon><component :is="isPending ? Clock : Warning" /></el-icon>
+        <div><span>{{ isPending ? '订单确认剩余' : '当前订单状态' }}</span><strong>{{ isPending ? countdown : order.effectiveStatus }}</strong></div>
       </div>
       <div class="checkout-section">
-        <span class="section-label">商品</span>
-        <h2>{{ product?.name || reservation.productId }}</h2>
-        <p>{{ product?.brand }} {{ product?.model }} · 设备编号 {{ reservation.equipmentDisplayCode }}</p>
+        <span class="section-label">已锁定设备</span>
+        <h2>{{ order.productName }}</h2>
+        <p>{{ order.productModel }} · 设备编号 {{ order.equipmentDisplayCode }}</p>
       </div>
       <div class="checkout-section period-summary">
-        <div><span>开始时间</span><strong>{{ formatDateTime(reservation.startAt, auth.user?.timezone) }}</strong></div>
-        <div><span>结束时间</span><strong>{{ formatDateTime(reservation.endAt, auth.user?.timezone) }}</strong></div>
+        <div><span>开始时间</span><strong>{{ formatDateTime(order.startAt, auth.user?.timezone) }}</strong></div>
+        <div><span>结束时间</span><strong>{{ formatDateTime(order.endAt, auth.user?.timezone) }}</strong></div>
       </div>
-      <div class="checkout-section"><span class="section-label">价格明细</span><PriceBreakdown :snapshot="reservation.priceSnapshot" /></div>
+      <div class="checkout-section"><span class="section-label">冻结价格</span><PriceBreakdown :snapshot="order.priceSnapshot" /></div>
       <div class="checkout-actions">
-        <el-button :loading="releasing" :disabled="reservation.effectiveStatus === 'CONSUMED'" @click="release">释放预占</el-button>
-        <el-button type="primary" :loading="submitting" :disabled="!isActive" @click="createOrder">确认下单</el-button>
+        <el-button :loading="cancelling" :disabled="!isPending" @click="cancelOrder">取消订单</el-button>
+        <el-button type="primary" :loading="submitting" :disabled="!isPending" @click="confirmOrder">确认预订</el-button>
       </div>
     </div>
   </section>

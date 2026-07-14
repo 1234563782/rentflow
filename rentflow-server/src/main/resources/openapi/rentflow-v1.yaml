@@ -154,63 +154,6 @@ paths:
         '404':
           $ref: '#/components/responses/ProductNotFound'
 
-  /api/v1/reservations:
-    post:
-      tags: [Reservations]
-      operationId: createReservation
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateReservationRequest'
-            example:
-              quoteId: 01J00000000000000000010001
-      responses:
-        '201':
-          description: Inventory reserved and price snapshot frozen
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Reservation'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/AuthenticationRequired'
-        '409':
-          description: Inventory, quote, limit, rental start, or idempotency conflict
-          headers:
-            Retry-After:
-              description: Present for IDEMPOTENCY_IN_PROGRESS.
-              schema:
-                type: integer
-                minimum: 1
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                inventoryUnavailable:
-                  value:
-                    code: INVENTORY_NOT_AVAILABLE
-                    message: No equipment is available for the requested period
-                    correlationId: 01J00000000000000000090001
-                    details: {}
-                quoteConsumed:
-                  value:
-                    code: QUOTE_ALREADY_CONSUMED
-                    message: Quote has already been used
-                    correlationId: 01J00000000000000000090002
-                    details: {}
-                idempotencyConflict:
-                  value:
-                    code: IDEMPOTENCY_CONFLICT
-                    message: Idempotency-Key was used for a different request
-                    correlationId: 01J00000000000000000090003
-                    details: {}
-
   /api/v1/reservations/{reservationId}:
     parameters:
       - $ref: '#/components/parameters/ReservationId'
@@ -230,25 +173,6 @@ paths:
           $ref: '#/components/responses/AccessDenied'
         '404':
           $ref: '#/components/responses/ReservationNotFound'
-    delete:
-      tags: [Reservations]
-      operationId: releaseReservation
-      responses:
-        '200':
-          description: Released reservation, or the same result when already released
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Reservation'
-        '401':
-          $ref: '#/components/responses/AuthenticationRequired'
-        '403':
-          $ref: '#/components/responses/AccessDenied'
-        '404':
-          $ref: '#/components/responses/ReservationNotFound'
-        '409':
-          $ref: '#/components/responses/StateConflict'
-
   /api/v1/orders:
     post:
       tags: [Orders]
@@ -263,7 +187,7 @@ paths:
               $ref: '#/components/schemas/CreateOrderRequest'
       responses:
         '201':
-          description: Order created and reservation consumed
+          description: Pending order created with a concrete equipment hold
           content:
             application/json:
               schema:
@@ -273,7 +197,7 @@ paths:
         '401':
           $ref: '#/components/responses/AuthenticationRequired'
         '409':
-          description: Reservation, rental start, or idempotency conflict
+          description: Quote, inventory, or idempotency conflict
           content:
             application/json:
               schema:
@@ -330,6 +254,54 @@ paths:
           $ref: '#/components/responses/AccessDenied'
         '404':
           $ref: '#/components/responses/OrderNotFound'
+
+  /api/v1/orders/{orderId}/confirm:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    post:
+      tags: [Orders]
+      operationId: confirmOrder
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Pending order confirmed and inventory hold consumed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/OrderNotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+
+  /api/v1/orders/{orderId}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    post:
+      tags: [Orders]
+      operationId: cancelOrder
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Pending order cancelled and inventory hold released
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/OrderNotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
 
 components:
   securitySchemes:
@@ -729,17 +701,17 @@ components:
     CreateOrderRequest:
       type: object
       additionalProperties: false
-      required: [reservationId]
+      required: [quoteId]
       properties:
-        reservationId:
+        quoteId:
           $ref: '#/components/schemas/Ulid'
     OrderStatus:
       type: string
-      enum: [CREATED]
+      enum: [PENDING_CONFIRMATION, CONFIRMED, CANCELLED, EXPIRED]
     Order:
       type: object
       additionalProperties: false
-      required: [orderId, sourceReservationId, productId, productName, productModel, equipmentDisplayCode, status, startAt, endAt, priceSnapshot, createdAt]
+      required: [orderId, sourceReservationId, productId, productName, productModel, equipmentDisplayCode, status, effectiveStatus, startAt, endAt, expiresAt, priceSnapshot, createdAt, confirmedAt, cancelledAt, expiredAt]
       properties:
         orderId:
           $ref: '#/components/schemas/Ulid'
@@ -755,14 +727,30 @@ components:
           type: string
         status:
           $ref: '#/components/schemas/OrderStatus'
+        effectiveStatus:
+          $ref: '#/components/schemas/OrderStatus'
         startAt:
           $ref: '#/components/schemas/Timestamp'
         endAt:
+          $ref: '#/components/schemas/Timestamp'
+        expiresAt:
           $ref: '#/components/schemas/Timestamp'
         priceSnapshot:
           $ref: '#/components/schemas/PriceSnapshot'
         createdAt:
           $ref: '#/components/schemas/Timestamp'
+        confirmedAt:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        cancelledAt:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        expiredAt:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
     OrderStatusHistory:
       type: object
       additionalProperties: false
@@ -781,7 +769,7 @@ components:
     OrderDetail:
       type: object
       additionalProperties: false
-      required: [orderId, sourceReservationId, productId, productName, productModel, equipmentDisplayCode, status, startAt, endAt, priceSnapshot, createdAt, statusHistory]
+      required: [orderId, sourceReservationId, productId, productName, productModel, equipmentDisplayCode, status, effectiveStatus, startAt, endAt, expiresAt, priceSnapshot, createdAt, confirmedAt, cancelledAt, expiredAt, statusHistory]
       properties:
         orderId:
           $ref: '#/components/schemas/Ulid'
@@ -797,14 +785,30 @@ components:
           type: string
         status:
           $ref: '#/components/schemas/OrderStatus'
+        effectiveStatus:
+          $ref: '#/components/schemas/OrderStatus'
         startAt:
           $ref: '#/components/schemas/Timestamp'
         endAt:
+          $ref: '#/components/schemas/Timestamp'
+        expiresAt:
           $ref: '#/components/schemas/Timestamp'
         priceSnapshot:
           $ref: '#/components/schemas/PriceSnapshot'
         createdAt:
           $ref: '#/components/schemas/Timestamp'
+        confirmedAt:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        cancelledAt:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        expiredAt:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
         statusHistory:
           type: array
           items:
@@ -856,6 +860,8 @@ components:
             - IDEMPOTENCY_CONFLICT
             - IDEMPOTENCY_IN_PROGRESS
             - ACTIVE_RESERVATION_LIMIT_EXCEEDED
+            - ORDER_EXPIRED
+            - ORDER_STATE_CONFLICT
             - INTERNAL_ERROR
         message:
           type: string

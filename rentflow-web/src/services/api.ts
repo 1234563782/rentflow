@@ -32,22 +32,24 @@ export const quoteApi = {
 }
 
 export const reservationApi = {
-  async create(quoteId: string, idempotencyKey: string) {
-    return (await http.post<Reservation>('/api/v1/reservations', { quoteId }, {
-      headers: { 'Idempotency-Key': idempotencyKey },
-    })).data
-  },
   async get(reservationId: string) {
     return (await http.get<Reservation>(`/api/v1/reservations/${reservationId}`)).data
-  },
-  async release(reservationId: string) {
-    return (await http.delete<Reservation>(`/api/v1/reservations/${reservationId}`)).data
   },
 }
 
 export const orderApi = {
-  async create(reservationId: string, idempotencyKey: string) {
-    return (await http.post<Order>('/api/v1/orders', { reservationId }, {
+  async create(quoteId: string, idempotencyKey: string) {
+    return (await http.post<Order>('/api/v1/orders', { quoteId }, {
+      headers: { 'Idempotency-Key': idempotencyKey },
+    })).data
+  },
+  async confirm(orderId: string, idempotencyKey: string) {
+    return (await http.post<Order>(`/api/v1/orders/${orderId}/confirm`, null, {
+      headers: { 'Idempotency-Key': idempotencyKey },
+    })).data
+  },
+  async cancel(orderId: string, idempotencyKey: string) {
+    return (await http.post<Order>(`/api/v1/orders/${orderId}/cancel`, null, {
       headers: { 'Idempotency-Key': idempotencyKey },
     })).data
   },

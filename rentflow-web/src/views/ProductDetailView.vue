@@ -5,7 +5,7 @@ import { ElMessage } from 'element-plus'
 import { ArrowLeft, Check, Clock, RefreshRight } from '@element-plus/icons-vue'
 import ProductVisual from '@/components/ProductVisual.vue'
 import PriceBreakdown from '@/components/PriceBreakdown.vue'
-import { catalogApi, quoteApi, reservationApi } from '@/services/api'
+import { catalogApi, orderApi, quoteApi } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import type { Availability, ProductDetail, Quote } from '@/types'
 import { apiErrorMessage, defaultRentalPeriod, formatDateTime, formatMoney, newIdempotencyKey, toIsoPeriod } from '@/utils'
@@ -22,7 +22,7 @@ const period = ref<[Date, Date] | null>(defaultRentalPeriod())
 const availability = ref<Availability>()
 const quote = ref<Quote>()
 const quoteSeconds = ref(0)
-let reserveKey: string | null = null
+let orderKey: string | null = null
 let timer: number | undefined
 
 const quoteExpired = computed(() => quote.value ? quoteSeconds.value <= 0 : false)
@@ -50,7 +50,7 @@ async function checkAndQuote() {
   flowLoading.value = true
   quote.value = undefined
   availability.value = undefined
-  reserveKey = null
+  orderKey = null
   try {
     const [availabilityResult, quoteResult] = await Promise.all([
       catalogApi.availability(product.value.productId, selected.startAt, selected.endAt),
@@ -66,11 +66,11 @@ async function checkAndQuote() {
 async function reserve() {
   if (!quote.value || !canReserve.value) return
   reserving.value = true
-  reserveKey ||= newIdempotencyKey()
+  orderKey ||= newIdempotencyKey()
   try {
-    const reservation = await reservationApi.create(quote.value.quoteId, reserveKey)
-    reserveKey = null
-    await router.push(`/reservations/${reservation.reservationId}/checkout`)
+    const order = await orderApi.create(quote.value.quoteId, orderKey)
+    orderKey = null
+    await router.push(`/orders/${order.orderId}/confirm`)
   } catch (cause) { ElMessage.error(apiErrorMessage(cause)) }
   finally { reserving.value = false }
 }
@@ -119,8 +119,8 @@ onBeforeUnmount(() => window.clearInterval(timer))
               <strong>{{ quoteExpired ? '请重新查询' : `${Math.floor(quoteSeconds / 60).toString().padStart(2, '0')}:${(quoteSeconds % 60).toString().padStart(2, '0')}` }}</strong>
             </div>
             <PriceBreakdown :snapshot="quote.priceSnapshot" />
-            <el-button class="full-button" type="primary" :disabled="!canReserve" :loading="reserving" @click="reserve">立即预占</el-button>
-            <p class="quote-note">报价不锁定库存，预占成功后才会分配具体设备。</p>
+            <el-button class="full-button" type="primary" :disabled="!canReserve" :loading="reserving" @click="reserve">立即预订</el-button>
+            <p class="quote-note">预订后将锁定具体设备 15 分钟，并创建一张待确认订单。</p>
           </div>
         </aside>
       </div>
