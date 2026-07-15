@@ -70,6 +70,18 @@ paths:
           schema:
             type: string
             pattern: '^[a-z0-9_]{1,64}$'
+        - name: brand
+          in: query
+          description: Case-insensitive exact product brand.
+          schema:
+            type: string
+            maxLength: 64
+        - name: model
+          in: query
+          description: Case-insensitive exact product model.
+          schema:
+            type: string
+            maxLength: 64
         - name: categoryId
           in: query
           schema:

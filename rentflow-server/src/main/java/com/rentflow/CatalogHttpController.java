@@ -44,6 +44,8 @@ public class CatalogHttpController {
     public ProductPage searchProducts(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String equipmentRole,
+            @RequestParam(required = false) String brand,
+            @RequestParam(required = false) String model,
             @RequestParam(required = false) String categoryId,
             @RequestParam(required = false) BigDecimal maxDailyRate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime startAt,
@@ -57,6 +59,8 @@ public class CatalogHttpController {
         ProductPage result = catalogQuery.searchProducts(
                 keyword,
                 equipmentRole,
+                brand,
+                model,
                 categoryId,
                 maxDailyRate,
                 new PageQuery(page, size)

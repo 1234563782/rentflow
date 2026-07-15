@@ -11,6 +11,8 @@ public interface CatalogQuery {
     ProductPage searchProducts(
             String keyword,
             String equipmentRole,
+            String brand,
+            String model,
             String categoryId,
             BigDecimal maxDailyRate,
             PageQuery pageQuery

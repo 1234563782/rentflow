@@ -41,17 +41,23 @@ public class CatalogApplicationService implements CatalogQuery {
     public ProductPage searchProducts(
             String keyword,
             String equipmentRole,
+            String brand,
+            String model,
             String categoryId,
             BigDecimal maxDailyRate,
             PageQuery pageQuery
     ) {
         String normalizedKeyword = normalizeKeyword(keyword);
         String normalizedEquipmentRole = normalizeEquipmentRole(equipmentRole);
+        String normalizedBrand = normalizeExactFilter("brand", brand);
+        String normalizedModel = normalizeExactFilter("model", model);
         String normalizedCategoryId = categoryId == null ? null : Ulid.requireValid(categoryId);
         BigDecimal normalizedMaxDailyRate = normalizeMaxDailyRate(maxDailyRate);
         List<ProductSummary> items = catalogMapper.searchProducts(
                         normalizedKeyword,
                         normalizedEquipmentRole,
+                        normalizedBrand,
+                        normalizedModel,
                         normalizedCategoryId,
                         normalizedMaxDailyRate,
                         pageQuery.offset(),
@@ -62,6 +68,8 @@ public class CatalogApplicationService implements CatalogQuery {
         long total = catalogMapper.countProducts(
                 normalizedKeyword,
                 normalizedEquipmentRole,
+                normalizedBrand,
+                normalizedModel,
                 normalizedCategoryId,
                 normalizedMaxDailyRate
         );
@@ -167,6 +175,17 @@ public class CatalogApplicationService implements CatalogQuery {
         String normalized = equipmentRole.strip();
         if (!normalized.matches("[a-z0-9_]{1,64}")) {
             throw new IllegalArgumentException("equipmentRole must use lowercase letters, digits, or underscores");
+        }
+        return normalized;
+    }
+
+    private String normalizeExactFilter(String name, String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String normalized = value.strip();
+        if (normalized.length() > 64) {
+            throw new IllegalArgumentException(name + " must not exceed 64 characters");
         }
         return normalized;
     }

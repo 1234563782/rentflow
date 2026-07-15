@@ -21,6 +21,8 @@ public interface CatalogMapper {
     List<ProductRow> searchProducts(
             @Param("keyword") String keyword,
             @Param("equipmentRole") String equipmentRole,
+            @Param("brand") String brand,
+            @Param("model") String model,
             @Param("categoryId") String categoryId,
             @Param("maxDailyRate") BigDecimal maxDailyRate,
             @Param("offset") long offset,
@@ -30,6 +32,8 @@ public interface CatalogMapper {
     long countProducts(
             @Param("keyword") String keyword,
             @Param("equipmentRole") String equipmentRole,
+            @Param("brand") String brand,
+            @Param("model") String model,
             @Param("categoryId") String categoryId,
             @Param("maxDailyRate") BigDecimal maxDailyRate
     );
