@@ -3,6 +3,7 @@ package com.rentflow.catalog.api;
 public record ProductSummary(
         String productId,
         String categoryId,
+        String equipmentRole,
         String name,
         String brand,
         String model,
@@ -14,6 +15,7 @@ public record ProductSummary(
         return new ProductSummary(
                 productId,
                 categoryId,
+                equipmentRole,
                 name,
                 brand,
                 model,

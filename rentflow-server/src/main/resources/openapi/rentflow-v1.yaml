@@ -64,10 +64,22 @@ paths:
           schema:
             type: string
             maxLength: 128
+        - name: equipmentRole
+          in: query
+          description: Exact structured equipment role used by scenario planning.
+          schema:
+            type: string
+            pattern: '^[a-z0-9_]{1,64}$'
         - name: categoryId
           in: query
           schema:
             $ref: '#/components/schemas/Ulid'
+        - name: maxDailyRate
+          in: query
+          description: Maximum daily rental rate per product.
+          schema:
+            type: number
+            exclusiveMinimum: 0
         - name: startAt
           in: query
           description: Must be supplied together with endAt to include availability.
@@ -513,12 +525,15 @@ components:
     ProductSummary:
       type: object
       additionalProperties: false
-      required: [productId, categoryId, name, brand, model, dailyRate, fixedDeposit]
+      required: [productId, categoryId, equipmentRole, name, brand, model, dailyRate, fixedDeposit]
       properties:
         productId:
           $ref: '#/components/schemas/Ulid'
         categoryId:
           $ref: '#/components/schemas/Ulid'
+        equipmentRole:
+          type: string
+          pattern: '^[a-z0-9_]{1,64}$'
         name:
           type: string
         brand:
@@ -536,12 +551,15 @@ components:
     ProductDetail:
       type: object
       additionalProperties: false
-      required: [productId, categoryId, name, brand, model, description, dailyRate, fixedDeposit]
+      required: [productId, categoryId, equipmentRole, name, brand, model, description, dailyRate, fixedDeposit]
       properties:
         productId:
           $ref: '#/components/schemas/Ulid'
         categoryId:
           $ref: '#/components/schemas/Ulid'
+        equipmentRole:
+          type: string
+          pattern: '^[a-z0-9_]{1,64}$'
         name:
           type: string
         brand:

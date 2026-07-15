@@ -1,0 +1,31 @@
+INSERT INTO categories (id, name, sort_order) VALUES
+('01J00000000000000000000004', '音频设备', 40),
+('01J00000000000000000000005', '灯光设备', 50),
+('01J00000000000000000000006', '直播配件', 60);
+
+INSERT INTO products (
+    id, category_id, name, brand, model, description,
+    daily_rate, fixed_deposit, pricing_version
+) VALUES
+('01J00000000000000000000107', '01J00000000000000000000004',
+ 'Rode Wireless GO II 无线麦克风', 'Rode', 'Wireless GO II',
+ '双通道无线麦克风，适合直播和采访收音。', 40.00, 800.00, 1),
+('01J00000000000000000000108', '01J00000000000000000000005',
+ 'Aputure Amaran 100d 补光灯', 'Aputure', 'Amaran 100d',
+ '日光型 LED 补光灯，适合室内直播和视频拍摄。', 40.00, 900.00, 1),
+('01J00000000000000000000109', '01J00000000000000000000006',
+ 'Elgato Cam Link 4K 采集卡', 'Elgato', 'Cam Link 4K',
+ 'HDMI 视频采集卡，用于相机直播推流。', 40.00, 700.00, 1),
+('01J00000000000000000000110', '01J00000000000000000000006',
+ 'Manfrotto Befree 三脚架', 'Manfrotto', 'Befree',
+ '便携相机三脚架，适合单机位直播。', 20.00, 500.00, 1);
+
+INSERT INTO equipment_units (id, product_id, serial_number, display_code, status) VALUES
+('01J00000000000000000001009', '01J00000000000000000000107',
+ 'DEMO-WGO2-0001', 'WGO2-01', 'AVAILABLE'),
+('01J00000000000000000001010', '01J00000000000000000000108',
+ 'DEMO-AM100D-0001', 'AM100D-01', 'AVAILABLE'),
+('01J00000000000000000001011', '01J00000000000000000000109',
+ 'DEMO-CAMLINK-0001', 'CAMLINK-01', 'AVAILABLE'),
+('01J00000000000000000001012', '01J00000000000000000000110',
+ 'DEMO-BEFREE-0001', 'BEFREE-01', 'AVAILABLE');

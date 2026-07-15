@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
 import java.util.Optional;
+import java.math.BigDecimal;
 
 @Mapper
 public interface CatalogMapper {
@@ -19,15 +20,22 @@ public interface CatalogMapper {
 
     List<ProductRow> searchProducts(
             @Param("keyword") String keyword,
+            @Param("equipmentRole") String equipmentRole,
             @Param("categoryId") String categoryId,
+            @Param("maxDailyRate") BigDecimal maxDailyRate,
             @Param("offset") long offset,
             @Param("size") int size
     );
 
-    long countProducts(@Param("keyword") String keyword, @Param("categoryId") String categoryId);
+    long countProducts(
+            @Param("keyword") String keyword,
+            @Param("equipmentRole") String equipmentRole,
+            @Param("categoryId") String categoryId,
+            @Param("maxDailyRate") BigDecimal maxDailyRate
+    );
 
     @Select("""
-            SELECT id, category_id, name, brand, model, description,
+            SELECT id, category_id, equipment_role, name, brand, model, description,
                    daily_rate, fixed_deposit, pricing_version
             FROM products
             WHERE id = #{productId} AND enabled = TRUE
@@ -35,7 +43,7 @@ public interface CatalogMapper {
     Optional<ProductRow> findEnabledProduct(@Param("productId") String productId);
 
     @Select("""
-            SELECT id, category_id, name, brand, model, description,
+            SELECT id, category_id, equipment_role, name, brand, model, description,
                    daily_rate, fixed_deposit, pricing_version
             FROM products
             WHERE id = #{productId}

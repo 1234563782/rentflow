@@ -16,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
 
@@ -37,18 +38,33 @@ public class CatalogApplicationService implements CatalogQuery {
 
     @Override
     @Transactional(readOnly = true)
-    public ProductPage searchProducts(String keyword, String categoryId, PageQuery pageQuery) {
+    public ProductPage searchProducts(
+            String keyword,
+            String equipmentRole,
+            String categoryId,
+            BigDecimal maxDailyRate,
+            PageQuery pageQuery
+    ) {
         String normalizedKeyword = normalizeKeyword(keyword);
+        String normalizedEquipmentRole = normalizeEquipmentRole(equipmentRole);
         String normalizedCategoryId = categoryId == null ? null : Ulid.requireValid(categoryId);
+        BigDecimal normalizedMaxDailyRate = normalizeMaxDailyRate(maxDailyRate);
         List<ProductSummary> items = catalogMapper.searchProducts(
                         normalizedKeyword,
+                        normalizedEquipmentRole,
                         normalizedCategoryId,
+                        normalizedMaxDailyRate,
                         pageQuery.offset(),
                         pageQuery.size()
                 ).stream()
                 .map(this::summary)
                 .toList();
-        long total = catalogMapper.countProducts(normalizedKeyword, normalizedCategoryId);
+        long total = catalogMapper.countProducts(
+                normalizedKeyword,
+                normalizedEquipmentRole,
+                normalizedCategoryId,
+                normalizedMaxDailyRate
+        );
         int totalPages = total == 0 ? 0 : Math.toIntExact((total + pageQuery.size() - 1) / pageQuery.size());
         return new ProductPage(items, pageQuery.page(), pageQuery.size(), total, totalPages);
     }
@@ -60,6 +76,7 @@ public class CatalogApplicationService implements CatalogQuery {
         return new ProductDetail(
                 row.id(),
                 row.categoryId(),
+                row.equipmentRole(),
                 row.name(),
                 row.brand(),
                 row.model(),
@@ -108,6 +125,7 @@ public class CatalogApplicationService implements CatalogQuery {
         return new ProductSummary(
                 row.id(),
                 row.categoryId(),
+                row.equipmentRole(),
                 row.name(),
                 row.brand(),
                 row.model(),
@@ -128,6 +146,27 @@ public class CatalogApplicationService implements CatalogQuery {
         String normalized = keyword.strip();
         if (normalized.length() > 128) {
             throw new IllegalArgumentException("keyword must not exceed 128 characters");
+        }
+        return normalized;
+    }
+
+    private BigDecimal normalizeMaxDailyRate(BigDecimal maxDailyRate) {
+        if (maxDailyRate == null) {
+            return null;
+        }
+        if (maxDailyRate.signum() <= 0) {
+            throw new IllegalArgumentException("maxDailyRate must be greater than zero");
+        }
+        return maxDailyRate;
+    }
+
+    private String normalizeEquipmentRole(String equipmentRole) {
+        if (equipmentRole == null || equipmentRole.isBlank()) {
+            return null;
+        }
+        String normalized = equipmentRole.strip();
+        if (!normalized.matches("[a-z0-9_]{1,64}")) {
+            throw new IllegalArgumentException("equipmentRole must use lowercase letters, digits, or underscores");
         }
         return normalized;
     }

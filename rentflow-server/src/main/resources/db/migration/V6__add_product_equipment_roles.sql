@@ -1,0 +1,23 @@
+ALTER TABLE products
+    ADD COLUMN equipment_role VARCHAR(64) NULL AFTER category_id;
+
+UPDATE products
+SET equipment_role = CASE id
+    WHEN '01J00000000000000000000101' THEN 'camera'
+    WHEN '01J00000000000000000000102' THEN 'camera'
+    WHEN '01J00000000000000000000103' THEN 'lens'
+    WHEN '01J00000000000000000000104' THEN 'drone'
+    WHEN '01J00000000000000000000105' THEN 'laptop'
+    WHEN '01J00000000000000000000106' THEN 'action_camera'
+    WHEN '01J00000000000000000000107' THEN 'microphone'
+    WHEN '01J00000000000000000000108' THEN 'lighting'
+    WHEN '01J00000000000000000000109' THEN 'capture_card'
+    WHEN '01J00000000000000000000110' THEN 'tripod'
+    ELSE 'other'
+END;
+
+ALTER TABLE products
+    MODIFY COLUMN equipment_role VARCHAR(64) NOT NULL;
+
+CREATE INDEX idx_products_equipment_role_daily_rate
+    ON products (equipment_role, daily_rate, id);

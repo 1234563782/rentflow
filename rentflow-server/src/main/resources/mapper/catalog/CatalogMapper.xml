@@ -8,6 +8,12 @@
         <if test="categoryId != null">
             AND p.category_id = #{categoryId}
         </if>
+        <if test="equipmentRole != null">
+            AND p.equipment_role = #{equipmentRole}
+        </if>
+        <if test="maxDailyRate != null">
+            AND p.daily_rate &lt;= #{maxDailyRate}
+        </if>
         <if test="keyword != null">
             AND (
                 p.model = #{keyword}
@@ -18,7 +24,7 @@
     </sql>
 
     <select id="searchProducts" resultType="com.rentflow.catalog.infrastructure.ProductRow">
-        SELECT p.id, p.category_id, p.name, p.brand, p.model, p.description,
+        SELECT p.id, p.category_id, p.equipment_role, p.name, p.brand, p.model, p.description,
                p.daily_rate, p.fixed_deposit, p.pricing_version
         FROM products p
         WHERE <include refid="productFilter"/>

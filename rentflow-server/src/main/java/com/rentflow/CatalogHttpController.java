@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.OffsetDateTime;
+import java.math.BigDecimal;
 import java.util.List;
 
 @RestController
@@ -42,7 +43,9 @@ public class CatalogHttpController {
     @GetMapping("/products")
     public ProductPage searchProducts(
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String equipmentRole,
             @RequestParam(required = false) String categoryId,
+            @RequestParam(required = false) BigDecimal maxDailyRate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime startAt,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime endAt,
             @RequestParam(defaultValue = "0") int page,
@@ -51,7 +54,13 @@ public class CatalogHttpController {
         if ((startAt == null) != (endAt == null)) {
             throw new IllegalArgumentException("startAt and endAt must be supplied together");
         }
-        ProductPage result = catalogQuery.searchProducts(keyword, categoryId, new PageQuery(page, size));
+        ProductPage result = catalogQuery.searchProducts(
+                keyword,
+                equipmentRole,
+                categoryId,
+                maxDailyRate,
+                new PageQuery(page, size)
+        );
         if (startAt == null) {
             return result;
         }
