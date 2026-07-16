@@ -205,6 +205,32 @@ h1, h2, p { margin-top: 0; }
 .message--user .message-role { text-align: right; }
 .message-bubble { padding: 13px 15px; border-radius: 8px; background: #edf1ee; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; }
 .message--user .message-bubble { background: var(--forest); color: white; }
+.recommendation-presentation { display: grid; gap: 16px; margin-top: 10px; }
+.recommendation-section h3 { margin: 0 0 8px; font-size: 14px; }
+.recommendation-products { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+.recommendation-product { display: grid; grid-template-columns: 108px minmax(0,1fr); min-height: 132px; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: white; color: inherit; text-align: left; cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease; }
+.recommendation-product:hover { border-color: #8aa99a; box-shadow: 0 6px 18px rgba(37,59,53,.1); }
+.recommendation-product:focus-visible { outline: 2px solid var(--forest-2); outline-offset: 2px; }
+.recommendation-product .product-visual { width: 108px; min-height: 100%; aspect-ratio: auto; border-radius: 0; }
+.recommendation-product .product-visual .el-icon { font-size: 36px; }
+.recommendation-product-body { display: grid; align-content: center; gap: 4px; padding: 12px; min-width: 0; }
+.recommendation-product-body strong { overflow-wrap: anywhere; font-size: 13px; }
+.recommendation-product-body span { color: var(--muted); font-size: 11px; }
+.recommendation-price { color: #c4492d; font-size: 18px; font-weight: 750; }
+.recommendation-price small { margin-left: 2px; font-size: 10px; font-weight: 500; }
+.availability-label { color: #397a4d !important; }
+.availability-label.is-unchecked { color: var(--muted) !important; }
+.recommendation-followup { display: grid; gap: 8px; font-size: 13px; }
+.followup-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.followup-options button { padding: 7px 10px; border: 1px solid #b9c9c1; border-radius: 6px; background: white; color: var(--forest-2); cursor: pointer; }
+.followup-options button:hover { border-color: var(--forest-2); background: #edf4f0; }
+.quick-booking-product { display: grid; gap: 3px; padding-right: 32px; }
+.quick-booking-product span { color: var(--muted); font-size: 11px; }
+.quick-booking-product strong { font-size: 18px; }
+.quick-booking-product div { color: #c4492d; font-size: 20px; font-weight: 750; }
+.quick-booking-product small { margin-left: 2px; font-size: 10px; font-weight: 500; }
+.quick-booking-tool { display: grid; }
+.quick-booking-tool .el-date-editor { width: 100%; }
 .composer { display: grid; grid-template-columns: minmax(0,1fr) 42px; gap: 10px; align-items: end; width: min(850px, calc(100% - 40px)); margin: 14px auto 0; padding: 10px; background: white; border: 1px solid #cbd5d0; border-radius: 8px; box-shadow: 0 10px 25px rgba(37,59,53,.08); }
 .composer .el-textarea__inner { min-height: 40px !important; padding: 9px 10px; border: 0; box-shadow: none; }
 .composer-button { width: 40px; height: 40px; }
@@ -268,5 +294,8 @@ h1, h2, p { margin-top: 0; }
   .message-list { height: 100%; padding: 18px 14px; }
   .tool-rail { display: none; }
   .message { max-width: 90%; }
+  .recommendation-products { grid-template-columns: 1fr; }
+  .recommendation-product { grid-template-columns: 88px minmax(0,1fr); }
+  .recommendation-product .product-visual { width: 88px; }
   .composer { width: 100%; margin-top: 10px; }
 }

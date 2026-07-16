@@ -125,7 +125,54 @@ export interface OrderDetail extends Order {
   statusHistory: OrderHistory[]
 }
 
-export interface ConversationCreated { id: string }
+export interface ConversationCreated {
+  id: string
+  timezone: string
+  title: string | null
+  createdAt: string
+  updatedAt: string
+}
+export interface ConversationMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  createdAt: string
+  presentation?: RecommendationPresentation | null
+}
+export interface ProductUseCase {
+  id: string
+  code: string
+  name: string
+  weight: number
+}
+export interface RecommendationCard {
+  productId: string
+  name: string
+  brand: string
+  model: string
+  dailyRate: string
+  fixedDeposit: string
+  availableCount: number | null
+  useCases: ProductUseCase[]
+}
+export interface RecommendationSection {
+  useCaseId: string | null
+  title: string
+  products: RecommendationCard[]
+}
+export interface FollowUpOption { value: string; label: string }
+export interface FollowUpQuestion {
+  field: 'use_case' | 'rental_period'
+  text: string
+  options: FollowUpOption[]
+}
+export interface RecommendationPresentation {
+  mode: 'explore' | 'recommend'
+  sections: RecommendationSection[]
+  rentalPeriod: RentalPeriodValue | null
+  followUp: FollowUpQuestion | null
+}
+export interface RentalPeriodValue { startAt: string; endAt: string }
 export interface MessageRun {
   runId: string
   conversationId: string

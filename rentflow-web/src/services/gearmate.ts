@@ -1,4 +1,4 @@
-import type { ConversationCreated, MessageRun } from '@/types'
+import type { ConversationCreated, ConversationMessage, MessageRun } from '@/types'
 import { gearmateBaseUrl, TOKEN_KEY } from './http'
 
 function headers(extra: HeadersInit = {}) {
@@ -17,6 +17,16 @@ export async function createConversation(timezone: string) {
   return jsonRequest<ConversationCreated>('/api/v1/conversations', {
     method: 'POST', body: JSON.stringify({ timezone }),
   })
+}
+
+export async function listConversations() {
+  return jsonRequest<ConversationCreated[]>('/api/v1/conversations')
+}
+
+export async function listConversationMessages(conversationId: string) {
+  return jsonRequest<ConversationMessage[]>(
+    `/api/v1/conversations/${conversationId}/messages?limit=200`,
+  )
 }
 
 export async function sendMessage(conversationId: string, content: string) {

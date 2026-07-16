@@ -1,5 +1,7 @@
 package com.rentflow.catalog.api;
 
+import java.util.List;
+
 public record ProductSummary(
         String productId,
         String categoryId,
@@ -9,8 +11,13 @@ public record ProductSummary(
         String model,
         String dailyRate,
         String fixedDeposit,
-        Integer availableCount
+        Integer availableCount,
+        List<ProductUseCase> useCases
 ) {
+    public ProductSummary {
+        useCases = List.copyOf(useCases);
+    }
+
     public ProductSummary withAvailableCount(int count) {
         return new ProductSummary(
                 productId,
@@ -21,7 +28,8 @@ public record ProductSummary(
                 model,
                 dailyRate,
                 fixedDeposit,
-                count
+                count,
+                useCases
         );
     }
 }

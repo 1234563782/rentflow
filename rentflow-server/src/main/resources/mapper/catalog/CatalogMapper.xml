@@ -17,6 +17,16 @@
         <if test="model != null">
             AND p.model = #{model}
         </if>
+        <if test="useCaseId != null">
+            AND EXISTS (
+                SELECT 1
+                FROM product_use_cases puc
+                JOIN catalog_use_cases uc ON uc.id = puc.use_case_id
+                WHERE puc.product_id = p.id
+                  AND puc.use_case_id = #{useCaseId}
+                  AND uc.enabled = TRUE
+            )
+        </if>
         <if test="maxDailyRate != null">
             AND p.daily_rate &lt;= #{maxDailyRate}
         </if>
@@ -48,5 +58,18 @@
         SELECT COUNT(*)
         FROM products p
         WHERE <include refid="productFilter"/>
+    </select>
+
+    <select id="listProductUseCases"
+            resultType="com.rentflow.catalog.infrastructure.ProductUseCaseRow">
+        SELECT puc.product_id, uc.id AS use_case_id, uc.code, uc.name, puc.weight
+        FROM product_use_cases puc
+        JOIN catalog_use_cases uc ON uc.id = puc.use_case_id
+        WHERE uc.enabled = TRUE
+          AND puc.product_id IN
+          <foreach collection="productIds" item="productId" open="(" separator="," close=")">
+              #{productId}
+          </foreach>
+        ORDER BY puc.product_id ASC, puc.weight DESC, uc.id ASC
     </select>
 </mapper>

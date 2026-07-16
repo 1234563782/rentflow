@@ -8,11 +8,14 @@ import java.util.List;
 public interface CatalogQuery {
     List<CategoryView> listCategories();
 
+    List<UseCaseView> listUseCases();
+
     ProductPage searchProducts(
             String keyword,
             String equipmentRole,
             String brand,
             String model,
+            String useCaseId,
             String categoryId,
             BigDecimal maxDailyRate,
             PageQuery pageQuery

@@ -7,8 +7,11 @@ import com.rentflow.catalog.api.ProductPage;
 import com.rentflow.catalog.api.ProductPricing;
 import com.rentflow.catalog.api.ProductSummary;
 import com.rentflow.catalog.api.ProductSnapshot;
+import com.rentflow.catalog.api.ProductUseCase;
+import com.rentflow.catalog.api.UseCaseView;
 import com.rentflow.catalog.infrastructure.CatalogMapper;
 import com.rentflow.catalog.infrastructure.ProductRow;
+import com.rentflow.catalog.infrastructure.ProductUseCaseRow;
 import com.rentflow.shared.id.Ulid;
 import com.rentflow.shared.pagination.PageQuery;
 import com.rentflow.shared.web.BusinessException;
@@ -19,6 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class CatalogApplicationService implements CatalogQuery {
@@ -38,11 +43,31 @@ public class CatalogApplicationService implements CatalogQuery {
 
     @Override
     @Transactional(readOnly = true)
+    public List<UseCaseView> listUseCases() {
+        Map<String, List<String>> aliases = catalogMapper.listUseCaseAliases().stream()
+                .collect(Collectors.groupingBy(
+                        row -> row.useCaseId(),
+                        Collectors.mapping(row -> row.alias(), Collectors.toList())
+                ));
+        return catalogMapper.listUseCases().stream()
+                .map(row -> new UseCaseView(
+                        row.id(),
+                        row.code(),
+                        row.name(),
+                        row.description(),
+                        aliases.getOrDefault(row.id(), List.of())
+                ))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public ProductPage searchProducts(
             String keyword,
             String equipmentRole,
             String brand,
             String model,
+            String useCaseId,
             String categoryId,
             BigDecimal maxDailyRate,
             PageQuery pageQuery
@@ -51,25 +76,30 @@ public class CatalogApplicationService implements CatalogQuery {
         String normalizedEquipmentRole = normalizeEquipmentRole(equipmentRole);
         String normalizedBrand = normalizeExactFilter("brand", brand);
         String normalizedModel = normalizeExactFilter("model", model);
+        String normalizedUseCaseId = useCaseId == null ? null : Ulid.requireValid(useCaseId);
         String normalizedCategoryId = categoryId == null ? null : Ulid.requireValid(categoryId);
         BigDecimal normalizedMaxDailyRate = normalizeMaxDailyRate(maxDailyRate);
-        List<ProductSummary> items = catalogMapper.searchProducts(
+        List<ProductRow> rows = catalogMapper.searchProducts(
                         normalizedKeyword,
                         normalizedEquipmentRole,
                         normalizedBrand,
                         normalizedModel,
+                        normalizedUseCaseId,
                         normalizedCategoryId,
                         normalizedMaxDailyRate,
                         pageQuery.offset(),
                         pageQuery.size()
-                ).stream()
-                .map(this::summary)
+                );
+        Map<String, List<ProductUseCase>> useCases = productUseCases(rows);
+        List<ProductSummary> items = rows.stream()
+                .map(row -> summary(row, useCases.getOrDefault(row.id(), List.of())))
                 .toList();
         long total = catalogMapper.countProducts(
                 normalizedKeyword,
                 normalizedEquipmentRole,
                 normalizedBrand,
                 normalizedModel,
+                normalizedUseCaseId,
                 normalizedCategoryId,
                 normalizedMaxDailyRate
         );
@@ -90,7 +120,8 @@ public class CatalogApplicationService implements CatalogQuery {
                 row.model(),
                 row.description(),
                 money(row.dailyRate()),
-                money(row.fixedDeposit())
+                money(row.fixedDeposit()),
+                productUseCases(List.of(row)).getOrDefault(row.id(), List.of())
         );
     }
 
@@ -129,7 +160,7 @@ public class CatalogApplicationService implements CatalogQuery {
         ));
     }
 
-    private ProductSummary summary(ProductRow row) {
+    private ProductSummary summary(ProductRow row, List<ProductUseCase> useCases) {
         return new ProductSummary(
                 row.id(),
                 row.categoryId(),
@@ -139,8 +170,26 @@ public class CatalogApplicationService implements CatalogQuery {
                 row.model(),
                 money(row.dailyRate()),
                 money(row.fixedDeposit()),
-                null
+                null,
+                useCases
         );
+    }
+
+    private Map<String, List<ProductUseCase>> productUseCases(List<ProductRow> products) {
+        if (products.isEmpty()) {
+            return Map.of();
+        }
+        return catalogMapper.listProductUseCases(products.stream().map(ProductRow::id).toList())
+                .stream()
+                .collect(Collectors.groupingBy(
+                        ProductUseCaseRow::productId,
+                        Collectors.mapping(
+                                row -> new ProductUseCase(
+                                        row.useCaseId(), row.code(), row.name(), row.weight()
+                                ),
+                                Collectors.toList()
+                        )
+                ));
     }
 
     private String money(java.math.BigDecimal value) {

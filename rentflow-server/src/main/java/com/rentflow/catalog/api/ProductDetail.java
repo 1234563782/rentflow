@@ -1,5 +1,7 @@
 package com.rentflow.catalog.api;
 
+import java.util.List;
+
 public record ProductDetail(
         String productId,
         String categoryId,
@@ -9,6 +11,10 @@ public record ProductDetail(
         String model,
         String description,
         String dailyRate,
-        String fixedDeposit
+        String fixedDeposit,
+        List<ProductUseCase> useCases
 ) {
+    public ProductDetail {
+        useCases = List.copyOf(useCases);
+    }
 }

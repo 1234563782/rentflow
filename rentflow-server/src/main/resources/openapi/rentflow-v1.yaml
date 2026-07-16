@@ -53,6 +53,21 @@ paths:
                 items:
                   $ref: '#/components/schemas/Category'
 
+  /api/v1/catalog/use-cases:
+    get:
+      tags: [Catalog]
+      operationId: listCatalogUseCases
+      security: []
+      responses:
+        '200':
+          description: Active dynamic catalog use cases and aliases
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CatalogUseCase'
+
   /api/v1/products:
     get:
       tags: [Catalog]
@@ -82,6 +97,11 @@ paths:
           schema:
             type: string
             maxLength: 64
+        - name: useCaseId
+          in: query
+          description: Exact dynamic catalog use case identifier.
+          schema:
+            $ref: '#/components/schemas/Ulid'
         - name: categoryId
           in: query
           schema:
@@ -534,10 +554,43 @@ components:
           type: string
         sortOrder:
           type: integer
+    CatalogUseCase:
+      type: object
+      additionalProperties: false
+      required: [id, code, name, description, aliases]
+      properties:
+        id:
+          $ref: '#/components/schemas/Ulid'
+        code:
+          type: string
+          pattern: '^[a-z0-9_]{1,64}$'
+        name:
+          type: string
+        description:
+          type: string
+        aliases:
+          type: array
+          items:
+            type: string
+    ProductUseCase:
+      type: object
+      additionalProperties: false
+      required: [id, code, name, weight]
+      properties:
+        id:
+          $ref: '#/components/schemas/Ulid'
+        code:
+          type: string
+        name:
+          type: string
+        weight:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 1
     ProductSummary:
       type: object
       additionalProperties: false
-      required: [productId, categoryId, equipmentRole, name, brand, model, dailyRate, fixedDeposit]
+      required: [productId, categoryId, equipmentRole, name, brand, model, dailyRate, fixedDeposit, useCases]
       properties:
         productId:
           $ref: '#/components/schemas/Ulid'
@@ -560,10 +613,14 @@ components:
           type: integer
           minimum: 0
           description: Present only when a complete rental period was supplied.
+        useCases:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductUseCase'
     ProductDetail:
       type: object
       additionalProperties: false
-      required: [productId, categoryId, equipmentRole, name, brand, model, description, dailyRate, fixedDeposit]
+      required: [productId, categoryId, equipmentRole, name, brand, model, description, dailyRate, fixedDeposit, useCases]
       properties:
         productId:
           $ref: '#/components/schemas/Ulid'
@@ -584,6 +641,10 @@ components:
           $ref: '#/components/schemas/Money'
         fixedDeposit:
           $ref: '#/components/schemas/Money'
+        useCases:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductUseCase'
     ProductPage:
       type: object
       additionalProperties: false

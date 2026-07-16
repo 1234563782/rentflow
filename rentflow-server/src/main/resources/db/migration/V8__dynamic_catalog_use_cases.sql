@@ -1,0 +1,72 @@
+CREATE TABLE catalog_use_cases (
+    id CHAR(26) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
+    code VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    name VARCHAR(64) NOT NULL,
+    description VARCHAR(512) NOT NULL,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    CONSTRAINT uk_catalog_use_cases_code UNIQUE (code),
+    INDEX idx_catalog_use_cases_enabled_updated (enabled, updated_at, id)
+);
+
+CREATE TABLE catalog_use_case_aliases (
+    id CHAR(26) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
+    use_case_id CHAR(26) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    alias VARCHAR(128) NOT NULL,
+    locale VARCHAR(16) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT 'und',
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    CONSTRAINT fk_use_case_aliases_use_case
+        FOREIGN KEY (use_case_id) REFERENCES catalog_use_cases(id) ON DELETE CASCADE,
+    CONSTRAINT uk_use_case_aliases_alias_locale UNIQUE (alias, locale),
+    INDEX idx_use_case_aliases_use_case (use_case_id, id)
+);
+
+CREATE TABLE product_use_cases (
+    product_id CHAR(26) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    use_case_id CHAR(26) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    weight DECIMAL(5,4) NOT NULL DEFAULT 1.0000,
+    source VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT 'manual',
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (product_id, use_case_id),
+    CONSTRAINT fk_product_use_cases_product
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+    CONSTRAINT fk_product_use_cases_use_case
+        FOREIGN KEY (use_case_id) REFERENCES catalog_use_cases(id) ON DELETE CASCADE,
+    CONSTRAINT ck_product_use_cases_weight CHECK (weight > 0 AND weight <= 1),
+    INDEX idx_product_use_cases_use_case_product (use_case_id, product_id)
+);
+
+INSERT INTO catalog_use_cases (id, code, name, description) VALUES
+('01J00000000000000000000201', 'mobile_office', '移动办公', '临时办公、商务出差、现场文档处理和演示'),
+('01J00000000000000000000202', 'video_editing', '视频剪辑', '视频素材整理、剪辑、调色和移动后期制作'),
+('01J00000000000000000000203', 'event_photography', '活动摄影', '会议、婚礼、年会、人物和现场活动拍摄'),
+('01J00000000000000000000204', 'live_streaming', '直播推流', '室内外直播、采访收音、视频采集和稳定机位'),
+('01J00000000000000000000205', 'travel_recording', '旅行记录', '旅行、运动、户外和便携影像记录'),
+('01J00000000000000000000206', 'aerial_imaging', '航拍', '户外航拍、场地巡检和高空影像记录');
+
+INSERT INTO catalog_use_case_aliases (id, use_case_id, alias, locale) VALUES
+('01J00000000000000000000301', '01J00000000000000000000201', '办公', 'zh-CN'),
+('01J00000000000000000000302', '01J00000000000000000000201', '出差', 'zh-CN'),
+('01J00000000000000000000303', '01J00000000000000000000202', '剪辑', 'zh-CN'),
+('01J00000000000000000000304', '01J00000000000000000000202', '后期', 'zh-CN'),
+('01J00000000000000000000305', '01J00000000000000000000203', '摄影', 'zh-CN'),
+('01J00000000000000000000306', '01J00000000000000000000203', '跟拍', 'zh-CN'),
+('01J00000000000000000000307', '01J00000000000000000000204', '直播', 'zh-CN'),
+('01J00000000000000000000308', '01J00000000000000000000205', '旅行记录', 'zh-CN'),
+('01J00000000000000000000309', '01J00000000000000000000206', '航拍', 'zh-CN');
+
+INSERT INTO product_use_cases (product_id, use_case_id, weight, source) VALUES
+('01J00000000000000000000101', '01J00000000000000000000203', 0.9500, 'seed'),
+('01J00000000000000000000101', '01J00000000000000000000204', 0.7000, 'seed'),
+('01J00000000000000000000102', '01J00000000000000000000203', 0.9800, 'seed'),
+('01J00000000000000000000103', '01J00000000000000000000203', 0.9000, 'seed'),
+('01J00000000000000000000104', '01J00000000000000000000206', 1.0000, 'seed'),
+('01J00000000000000000000105', '01J00000000000000000000201', 0.9500, 'seed'),
+('01J00000000000000000000105', '01J00000000000000000000202', 0.9800, 'seed'),
+('01J00000000000000000000106', '01J00000000000000000000205', 0.9800, 'seed'),
+('01J00000000000000000000107', '01J00000000000000000000204', 0.9500, 'seed'),
+('01J00000000000000000000108', '01J00000000000000000000204', 0.8500, 'seed'),
+('01J00000000000000000000109', '01J00000000000000000000204', 1.0000, 'seed'),
+('01J00000000000000000000110', '01J00000000000000000000204', 0.8000, 'seed');

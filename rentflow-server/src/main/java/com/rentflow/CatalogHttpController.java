@@ -6,6 +6,7 @@ import com.rentflow.catalog.api.CategoryView;
 import com.rentflow.catalog.api.ProductDetail;
 import com.rentflow.catalog.api.ProductPage;
 import com.rentflow.catalog.api.ProductSummary;
+import com.rentflow.catalog.api.UseCaseView;
 import com.rentflow.inventory.api.AvailabilityQuery;
 import com.rentflow.inventory.api.AvailabilityResult;
 import com.rentflow.shared.pagination.PageQuery;
@@ -40,12 +41,18 @@ public class CatalogHttpController {
         return catalogQuery.listCategories();
     }
 
+    @GetMapping("/catalog/use-cases")
+    public List<UseCaseView> listUseCases() {
+        return catalogQuery.listUseCases();
+    }
+
     @GetMapping("/products")
     public ProductPage searchProducts(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String equipmentRole,
             @RequestParam(required = false) String brand,
             @RequestParam(required = false) String model,
+            @RequestParam(required = false) String useCaseId,
             @RequestParam(required = false) String categoryId,
             @RequestParam(required = false) BigDecimal maxDailyRate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime startAt,
@@ -61,6 +68,7 @@ public class CatalogHttpController {
                 equipmentRole,
                 brand,
                 model,
+                useCaseId,
                 categoryId,
                 maxDailyRate,
                 new PageQuery(page, size)

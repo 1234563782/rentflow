@@ -22,7 +22,7 @@ class CatalogHttpControllerTest {
         CatalogQuery catalogQuery = mock(CatalogQuery.class);
         AvailabilityQuery availabilityQuery = mock(AvailabilityQuery.class);
         when(catalogQuery.searchProducts(
-                null, "laptop", "Apple", "MacBook Pro 14", null, null,
+                null, "laptop", "Apple", "MacBook Pro 14", null, null, null,
                 PageQuery.firstPage()
         )).thenReturn(new ProductPage(List.of(), 0, 20, 0, 0));
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
@@ -36,8 +36,28 @@ class CatalogHttpControllerTest {
                 .andExpect(status().isOk());
 
         verify(catalogQuery).searchProducts(
-                null, "laptop", "Apple", "MacBook Pro 14", null, null,
+                null, "laptop", "Apple", "MacBook Pro 14", null, null, null,
                 PageQuery.firstPage()
+        );
+    }
+
+    @Test
+    void bindsUseCaseSearchParameter() throws Exception {
+        CatalogQuery catalogQuery = mock(CatalogQuery.class);
+        AvailabilityQuery availabilityQuery = mock(AvailabilityQuery.class);
+        String useCaseId = "01J00000000000000000000202";
+        when(catalogQuery.searchProducts(
+                null, null, null, null, useCaseId, null, null, PageQuery.firstPage()
+        )).thenReturn(new ProductPage(List.of(), 0, 20, 0, 0));
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
+                new CatalogHttpController(catalogQuery, availabilityQuery)
+        ).build();
+
+        mockMvc.perform(get("/api/v1/products").param("useCaseId", useCaseId))
+                .andExpect(status().isOk());
+
+        verify(catalogQuery).searchProducts(
+                null, null, null, null, useCaseId, null, null, PageQuery.firstPage()
         );
     }
 }
