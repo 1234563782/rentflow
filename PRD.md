@@ -831,9 +831,8 @@ Idempotency-Key: <16-128 printable ASCII characters>
 | POST | `/api/v1/quotes` | 创建正式报价 | 是 | 商品、明确租期；返回不可变报价 |
 | GET | `/api/v1/reservations/{reservationId}` | 查询预占 | 是 | 仅限所有者 |
 | POST | `/api/v1/orders` | 幂等创建待确认订单和库存预占 | 是 | `quoteId`；要求幂等键 |
-| POST | `/api/v1/orders/{orderId}/confirm` | 确认订单 | 是 | 要求幂等键；消费预占 |
+| POST | `/api/v1/orders/{orderId}/confirm` | 确认订单并自动分配具体设备 | 是 | 要求幂等键；消费预占并绑定租期内无冲突的可用设备 |
 | POST | `/api/v1/orders/{orderId}/cancel` | 取消待确认订单 | 是 | 要求幂等键；释放预占 |
-| POST | `/api/v1/admin/orders/{orderId}/equipment-assignment` | 出库前分配具体设备 | ADMIN | 仅限已确认且租期未开始的订单；已有分配时幂等返回 |
 | GET | `/api/v1/orders` | 当前用户订单列表 | 是 | 分页、状态筛选 |
 | GET | `/api/v1/orders/{orderId}` | 当前用户订单详情 | 是 | 仅限所有者 |
 

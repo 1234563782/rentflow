@@ -21,6 +21,7 @@ import com.rentflow.ordering.infrastructure.OrderRow;
 import com.rentflow.pricing.api.PriceSnapshotView;
 import com.rentflow.shared.idempotency.IdempotencyProperties;
 import com.rentflow.shared.idempotency.MySqlIdempotencyMutex;
+import com.rentflow.shared.web.BusinessException;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -33,6 +34,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -68,42 +70,71 @@ class OrderApplicationServiceTest {
     }
 
     @Test
-    void confirmsPendingOrderAndConsumesInventoryHold() {
+    void confirmsPendingOrderConsumesInventoryHoldAndAssignsEquipment() {
         Fixtures fixtures = fixtures();
         when(fixtures.orderMapper.lockById(ORDER_ID)).thenReturn(Optional.of(orderRow(
                 "PENDING_CONFIRMATION", "PENDING_CONFIRMATION"
         )));
         when(fixtures.reservationAccess.lockReservation(RESERVATION_ID)).thenReturn(Optional.of(lockedReservation()));
+        when(fixtures.equipmentAssignmentAllocator.assign(PRODUCT_ID, START, END))
+                .thenReturn(new AssignedEquipment(EQUIPMENT_ID, "RF-A7M4-0001"));
         when(fixtures.orderMapper.confirmPending(ORDER_ID)).thenReturn(1);
         when(fixtures.reservationAccess.consumeActive(RESERVATION_ID)).thenReturn(1);
+        when(fixtures.reservationAccess.assignEquipment(RESERVATION_ID, EQUIPMENT_ID)).thenReturn(1);
+        when(fixtures.orderMapper.assignEquipment(ORDER_ID, EQUIPMENT_ID, "RF-A7M4-0001")).thenReturn(1);
         when(fixtures.orderMapper.insertHistory(anyString(), anyString(), any(), anyString(), anyString())).thenReturn(1);
-        when(fixtures.orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(orderRow("CONFIRMED", "CONFIRMED")));
+        when(fixtures.orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(assignedOrderRow()));
 
         OrderResponse response = fixtures.service.confirm(KEY, ORDER_ID);
 
         assertThat(response.effectiveStatus()).isEqualTo("CONFIRMED");
+        assertThat(response.equipmentDisplayCode()).isEqualTo("RF-A7M4-0001");
+        verify(fixtures.equipmentAssignmentAllocator).assign(PRODUCT_ID, START, END);
         verify(fixtures.reservationAccess).consumeActive(RESERVATION_ID);
+        verify(fixtures.reservationAccess).assignEquipment(RESERVATION_ID, EQUIPMENT_ID);
+        verify(fixtures.orderMapper).assignEquipment(ORDER_ID, EQUIPMENT_ID, "RF-A7M4-0001");
         verify(fixtures.eventPublisher).record(anyString(), anyString(), anyString(), any());
     }
 
     @Test
-    void adminAssignsConcreteEquipmentToConfirmedOrder() {
-        Fixtures fixtures = fixtures("ADMIN");
+    void leavesOrderPendingWhenNoConcreteEquipmentCanBeAssigned() {
+        Fixtures fixtures = fixtures();
         when(fixtures.orderMapper.lockById(ORDER_ID)).thenReturn(Optional.of(orderRow(
-                "CONFIRMED", "CONFIRMED"
+                "PENDING_CONFIRMATION", "PENDING_CONFIRMATION"
         )));
-        when(fixtures.equipmentAssignmentAllocator.assign(PRODUCT_ID, START, END))
-                .thenReturn(new AssignedEquipment(EQUIPMENT_ID, "RF-A7M4-0001"));
-        when(fixtures.reservationAccess.assignEquipment(RESERVATION_ID, EQUIPMENT_ID)).thenReturn(1);
-        when(fixtures.orderMapper.assignEquipment(ORDER_ID, EQUIPMENT_ID, "RF-A7M4-0001")).thenReturn(1);
-        when(fixtures.orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(assignedOrderRow()));
+        when(fixtures.reservationAccess.lockReservation(RESERVATION_ID)).thenReturn(Optional.of(lockedReservation()));
+        when(fixtures.equipmentAssignmentAllocator.assign(PRODUCT_ID, START, END)).thenThrow(
+                new BusinessException(
+                        "EQUIPMENT_ASSIGNMENT_UNAVAILABLE",
+                        "No concrete equipment can be assigned for the rental period",
+                        org.springframework.http.HttpStatus.CONFLICT
+                )
+        );
+        when(fixtures.orderMapper.failIdempotency(anyString(), anyInt(), anyString(), anyString())).thenReturn(1);
 
-        OrderResponse response = fixtures.service.assignEquipment(ORDER_ID);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> fixtures.service.confirm(KEY, ORDER_ID))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(exception.code()).isEqualTo("EQUIPMENT_ASSIGNMENT_UNAVAILABLE")
+                );
+
+        verify(fixtures.orderMapper, never()).confirmPending(ORDER_ID);
+        verify(fixtures.reservationAccess, never()).consumeActive(RESERVATION_ID);
+        verify(fixtures.reservationAccess, never()).assignEquipment(anyString(), anyString());
+        verify(fixtures.orderMapper, never()).assignEquipment(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void returnsExistingAssignmentForRepeatedConfirmation() {
+        Fixtures fixtures = fixtures();
+        when(fixtures.orderMapper.lockById(ORDER_ID)).thenReturn(Optional.of(assignedOrderRow()));
+
+        OrderResponse response = fixtures.service.confirm(KEY, ORDER_ID);
 
         assertThat(response.equipmentDisplayCode()).isEqualTo("RF-A7M4-0001");
-        verify(fixtures.equipmentAssignmentAllocator).assign(PRODUCT_ID, START, END);
-        verify(fixtures.reservationAccess).assignEquipment(RESERVATION_ID, EQUIPMENT_ID);
-        verify(fixtures.orderMapper).assignEquipment(ORDER_ID, EQUIPMENT_ID, "RF-A7M4-0001");
+        verify(fixtures.equipmentAssignmentAllocator, never()).assign(anyString(), any(), any());
+        verify(fixtures.orderMapper, never()).confirmPending(ORDER_ID);
+        verify(fixtures.reservationAccess, never()).consumeActive(anyString());
     }
 
     private Fixtures fixtures() {

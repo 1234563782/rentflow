@@ -289,7 +289,7 @@ paths:
         - $ref: '#/components/parameters/IdempotencyKey'
       responses:
         '200':
-          description: Pending order confirmed and inventory hold consumed
+          description: Pending order confirmed, inventory hold consumed, and concrete equipment assigned
           content:
             application/json:
               schema:
@@ -314,29 +314,6 @@ paths:
       responses:
         '200':
           description: Pending order cancelled and inventory hold released
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Order'
-        '401':
-          $ref: '#/components/responses/AuthenticationRequired'
-        '403':
-          $ref: '#/components/responses/AccessDenied'
-        '404':
-          $ref: '#/components/responses/OrderNotFound'
-        '409':
-          $ref: '#/components/responses/StateConflict'
-
-  /api/v1/admin/orders/{orderId}/equipment-assignment:
-    parameters:
-      - $ref: '#/components/parameters/OrderId'
-    post:
-      tags: [Orders]
-      operationId: assignEquipmentToOrder
-      description: Assigns a concrete equipment unit to a confirmed order before dispatch.
-      responses:
-        '200':
-          description: Concrete equipment assigned, or the existing assignment returned
           content:
             application/json:
               schema:

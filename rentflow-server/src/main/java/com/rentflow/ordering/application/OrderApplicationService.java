@@ -182,57 +182,6 @@ public class OrderApplicationService {
         );
     }
 
-    @Transactional
-    public OrderResponse assignEquipment(String orderId) {
-        CurrentUser user = currentUserProvider.requireCurrentUser();
-        if (!"ADMIN".equals(user.role())) {
-            throw business("ACCESS_DENIED", "Access is denied", HttpStatus.FORBIDDEN);
-        }
-        String validOrderId = Ulid.requireValid(orderId);
-        OrderRow order = orderMapper.lockById(validOrderId).orElseThrow(OrderApplicationService::notFound);
-        if (!"CONFIRMED".equals(order.status())) {
-            throw business(
-                    "ORDER_STATE_CONFLICT",
-                    "Only confirmed orders can receive equipment assignments",
-                    HttpStatus.CONFLICT
-            );
-        }
-        if (order.equipmentUnitId() != null) {
-            return response(order);
-        }
-        if (!order.startAt().isAfter(order.databaseNow())) {
-            throw business(
-                    "RENTAL_ALREADY_STARTED",
-                    "Rental period has already started",
-                    HttpStatus.CONFLICT
-            );
-        }
-        AssignedEquipment equipment = equipmentAssignmentAllocator.assign(
-                order.productId(), order.startAt(), order.endAt()
-        );
-        if (reservationAccess.assignEquipment(
-                order.sourceReservationId(), equipment.equipmentUnitId()
-        ) != 1) {
-            throw new IllegalStateException("Reservation equipment assignment did not affect exactly one row");
-        }
-        if (orderMapper.assignEquipment(
-                validOrderId, equipment.equipmentUnitId(), equipment.displayCode()
-        ) != 1) {
-            throw new IllegalStateException("Order equipment assignment did not affect exactly one row");
-        }
-        eventPublisher.record("ORDER", validOrderId, "order.equipment-assigned", Map.of(
-                "orderId", validOrderId,
-                "reservationId", order.sourceReservationId(),
-                "equipmentUnitId", equipment.equipmentUnitId(),
-                "equipmentDisplayCode", equipment.displayCode()
-        ));
-        auditLogWriter.write(new AuditCommand(
-                user.userId(), "ORDER_EQUIPMENT_ASSIGNED", "ORDER", validOrderId, "SUCCESS",
-                Map.of("equipmentUnitId", equipment.equipmentUnitId())
-        ));
-        return reload(validOrderId);
-    }
-
     private OrderResponse createPending(CurrentUser user, String idempotencyKey, CreateOrderRequest request) {
         ReservationResponse hold = holdCreator.createFromQuote(idempotencyKey, request.quoteId());
         LockedReservationForOrder reservation = reservationAccess.lockReservation(hold.reservationId())
@@ -285,21 +234,40 @@ public class OrderApplicationService {
         if (reservation.rentalStarted()) {
             throw business("RENTAL_ALREADY_STARTED", "Rental period has already started", HttpStatus.CONFLICT);
         }
+        AssignedEquipment equipment = equipmentAssignmentAllocator.assign(
+                reservation.productId(), reservation.startAt(), reservation.endAt()
+        );
         if (orderMapper.confirmPending(orderId) != 1) {
             throw new IllegalStateException("Pending order could not be confirmed");
         }
         if (reservationAccess.consumeActive(order.sourceReservationId()) != 1) {
             throw new IllegalStateException("Confirmed order inventory hold could not be consumed");
         }
+        if (reservationAccess.assignEquipment(
+                order.sourceReservationId(), equipment.equipmentUnitId()
+        ) != 1) {
+            throw new IllegalStateException("Reservation equipment assignment did not affect exactly one row");
+        }
+        if (orderMapper.assignEquipment(
+                orderId, equipment.equipmentUnitId(), equipment.displayCode()
+        ) != 1) {
+            throw new IllegalStateException("Order equipment assignment did not affect exactly one row");
+        }
         insertHistory(orderId, "PENDING_CONFIRMATION", "CONFIRMED", "ORDER_CONFIRMED");
         eventPublisher.record("ORDER", orderId, "order.confirmed", Map.of(
                 "orderId", orderId,
                 "reservationId", order.sourceReservationId(),
-                "productId", order.productId()
+                "productId", order.productId(),
+                "equipmentUnitId", equipment.equipmentUnitId(),
+                "equipmentDisplayCode", equipment.displayCode()
         ));
         auditLogWriter.write(new AuditCommand(
                 user.userId(), "ORDER_CONFIRMED", "ORDER", orderId, "SUCCESS",
-                Map.of("sourceReservationId", order.sourceReservationId())
+                Map.of(
+                        "sourceReservationId", order.sourceReservationId(),
+                        "equipmentUnitId", equipment.equipmentUnitId(),
+                        "equipmentDisplayCode", equipment.displayCode()
+                )
         ));
         return reload(orderId);
     }
