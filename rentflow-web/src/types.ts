@@ -158,6 +158,7 @@ export interface RecommendationCard {
 export interface RecommendationSection {
   useCaseId: string | null
   title: string
+  description?: string
   products: RecommendationCard[]
 }
 export interface FollowUpOption { value: string; label: string }
@@ -168,9 +169,11 @@ export interface FollowUpQuestion {
 }
 export interface RecommendationPresentation {
   mode: 'explore' | 'recommend'
+  intro?: string
   sections: RecommendationSection[]
   rentalPeriod: RentalPeriodValue | null
   followUp: FollowUpQuestion | null
+  closing?: string | null
 }
 export interface RentalPeriodValue { startAt: string; endAt: string }
 export interface MessageRun {

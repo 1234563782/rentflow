@@ -206,7 +206,12 @@ h1, h2, p { margin-top: 0; }
 .message-bubble { padding: 13px 15px; border-radius: 8px; background: #edf1ee; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; }
 .message--user .message-bubble { background: var(--forest); color: white; }
 .recommendation-presentation { display: grid; gap: 16px; margin-top: 10px; }
-.recommendation-section h3 { margin: 0 0 8px; font-size: 14px; }
+.recommendation-copy { margin: 0; color: #35413d; font-size: 13px; line-height: 1.65; }
+.recommendation-copy--intro { padding: 13px 15px; border-radius: 8px; background: #edf1ee; color: var(--ink); }
+.recommendation-copy--closing { color: var(--muted); }
+.recommendation-section { display: grid; gap: 8px; }
+.recommendation-section h3 { margin: 0; font-size: 14px; }
+.recommendation-section-copy { color: var(--muted); }
 .recommendation-products { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
 .recommendation-product { display: grid; grid-template-columns: 108px minmax(0,1fr); min-height: 132px; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: white; color: inherit; text-align: left; cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease; }
 .recommendation-product:hover { border-color: #8aa99a; box-shadow: 0 6px 18px rgba(37,59,53,.1); }
@@ -220,7 +225,7 @@ h1, h2, p { margin-top: 0; }
 .recommendation-price small { margin-left: 2px; font-size: 10px; font-weight: 500; }
 .availability-label { color: #397a4d !important; }
 .availability-label.is-unchecked { color: var(--muted) !important; }
-.recommendation-followup { display: grid; gap: 8px; font-size: 13px; }
+.recommendation-followup { display: grid; gap: 8px; padding-top: 2px; font-size: 13px; }
 .followup-options { display: flex; flex-wrap: wrap; gap: 8px; }
 .followup-options button { padding: 7px 10px; border: 1px solid #b9c9c1; border-radius: 6px; background: white; color: var(--forest-2); cursor: pointer; }
 .followup-options button:hover { border-color: var(--forest-2); background: #edf4f0; }

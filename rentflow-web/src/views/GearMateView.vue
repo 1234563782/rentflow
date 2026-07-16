@@ -165,10 +165,16 @@ onBeforeUnmount(() => controller?.abort())
         <template v-for="message in messages" :key="message.id">
           <div class="message" :class="`message--${message.role}`">
             <span class="message-role">{{ message.role === 'user' ? auth.user?.nickname : 'GearMate' }}</span>
-            <div class="message-bubble">{{ message.content || '正在思考…' }}</div>
+            <div v-if="!message.presentation?.intro" class="message-bubble">{{ message.content || '正在思考…' }}</div>
             <div v-if="message.presentation" class="recommendation-presentation">
+              <p v-if="message.presentation.intro" class="recommendation-copy recommendation-copy--intro">
+                {{ message.presentation.intro }}
+              </p>
               <section v-for="section in message.presentation.sections" :key="section.useCaseId || section.title" class="recommendation-section">
                 <h3>{{ section.title }}</h3>
+                <p v-if="section.description" class="recommendation-copy recommendation-section-copy">
+                  {{ section.description }}
+                </p>
                 <div class="recommendation-products">
                   <button
                     v-for="product in section.products"
@@ -197,6 +203,9 @@ onBeforeUnmount(() => controller?.abort())
                   </button>
                 </div>
               </div>
+              <p v-if="message.presentation.closing" class="recommendation-copy recommendation-copy--closing">
+                {{ message.presentation.closing }}
+              </p>
             </div>
           </div>
         </template>
