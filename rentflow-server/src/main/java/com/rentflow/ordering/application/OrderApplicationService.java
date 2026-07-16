@@ -8,6 +8,8 @@ import com.rentflow.audit.api.AuditLogWriter;
 import com.rentflow.identity.api.CurrentUser;
 import com.rentflow.identity.api.CurrentUserProvider;
 import com.rentflow.inventory.api.InventoryHoldCreator;
+import com.rentflow.inventory.api.AssignedEquipment;
+import com.rentflow.inventory.api.EquipmentAssignmentAllocator;
 import com.rentflow.inventory.api.LockedReservationForOrder;
 import com.rentflow.inventory.api.ReservationOrderAccess;
 import com.rentflow.inventory.api.ReservationResponse;
@@ -55,6 +57,7 @@ public class OrderApplicationService {
 
     private final CurrentUserProvider currentUserProvider;
     private final InventoryHoldCreator holdCreator;
+    private final EquipmentAssignmentAllocator equipmentAssignmentAllocator;
     private final ReservationOrderAccess reservationAccess;
     private final OrderMapper orderMapper;
     private final AuditLogWriter auditLogWriter;
@@ -66,6 +69,7 @@ public class OrderApplicationService {
     public OrderApplicationService(
             CurrentUserProvider currentUserProvider,
             InventoryHoldCreator holdCreator,
+            EquipmentAssignmentAllocator equipmentAssignmentAllocator,
             ReservationOrderAccess reservationAccess,
             OrderMapper orderMapper,
             AuditLogWriter auditLogWriter,
@@ -76,6 +80,7 @@ public class OrderApplicationService {
     ) {
         this.currentUserProvider = currentUserProvider;
         this.holdCreator = holdCreator;
+        this.equipmentAssignmentAllocator = equipmentAssignmentAllocator;
         this.reservationAccess = reservationAccess;
         this.orderMapper = orderMapper;
         this.auditLogWriter = auditLogWriter;
@@ -177,6 +182,57 @@ public class OrderApplicationService {
         );
     }
 
+    @Transactional
+    public OrderResponse assignEquipment(String orderId) {
+        CurrentUser user = currentUserProvider.requireCurrentUser();
+        if (!"ADMIN".equals(user.role())) {
+            throw business("ACCESS_DENIED", "Access is denied", HttpStatus.FORBIDDEN);
+        }
+        String validOrderId = Ulid.requireValid(orderId);
+        OrderRow order = orderMapper.lockById(validOrderId).orElseThrow(OrderApplicationService::notFound);
+        if (!"CONFIRMED".equals(order.status())) {
+            throw business(
+                    "ORDER_STATE_CONFLICT",
+                    "Only confirmed orders can receive equipment assignments",
+                    HttpStatus.CONFLICT
+            );
+        }
+        if (order.equipmentUnitId() != null) {
+            return response(order);
+        }
+        if (!order.startAt().isAfter(order.databaseNow())) {
+            throw business(
+                    "RENTAL_ALREADY_STARTED",
+                    "Rental period has already started",
+                    HttpStatus.CONFLICT
+            );
+        }
+        AssignedEquipment equipment = equipmentAssignmentAllocator.assign(
+                order.productId(), order.startAt(), order.endAt()
+        );
+        if (reservationAccess.assignEquipment(
+                order.sourceReservationId(), equipment.equipmentUnitId()
+        ) != 1) {
+            throw new IllegalStateException("Reservation equipment assignment did not affect exactly one row");
+        }
+        if (orderMapper.assignEquipment(
+                validOrderId, equipment.equipmentUnitId(), equipment.displayCode()
+        ) != 1) {
+            throw new IllegalStateException("Order equipment assignment did not affect exactly one row");
+        }
+        eventPublisher.record("ORDER", validOrderId, "order.equipment-assigned", Map.of(
+                "orderId", validOrderId,
+                "reservationId", order.sourceReservationId(),
+                "equipmentUnitId", equipment.equipmentUnitId(),
+                "equipmentDisplayCode", equipment.displayCode()
+        ));
+        auditLogWriter.write(new AuditCommand(
+                user.userId(), "ORDER_EQUIPMENT_ASSIGNED", "ORDER", validOrderId, "SUCCESS",
+                Map.of("equipmentUnitId", equipment.equipmentUnitId())
+        ));
+        return reload(validOrderId);
+    }
+
     private OrderResponse createPending(CurrentUser user, String idempotencyKey, CreateOrderRequest request) {
         ReservationResponse hold = holdCreator.createFromQuote(idempotencyKey, request.quoteId());
         LockedReservationForOrder reservation = reservationAccess.lockReservation(hold.reservationId())
@@ -194,7 +250,6 @@ public class OrderApplicationService {
                 "orderId", orderId,
                 "reservationId", reservation.reservationId(),
                 "productId", reservation.productId(),
-                "equipmentUnitId", reservation.equipmentUnitId(),
                 "expiresAt", reservation.expiresAt().toString()
         ));
         auditLogWriter.write(new AuditCommand(
@@ -224,7 +279,6 @@ public class OrderApplicationService {
         LockedReservationForOrder reservation = reservationAccess.lockReservation(order.sourceReservationId())
                 .orElseThrow(() -> new IllegalStateException("Order inventory hold cannot be locked"));
         if (!"ACTIVE".equals(reservation.effectiveStatus())
-                || !"AVAILABLE".equals(reservation.equipmentStatus())
                 || !reservation.snapshotComplete()) {
             throw business("ORDER_STATE_CONFLICT", "Order inventory hold is no longer valid", HttpStatus.CONFLICT);
         }
@@ -241,8 +295,7 @@ public class OrderApplicationService {
         eventPublisher.record("ORDER", orderId, "order.confirmed", Map.of(
                 "orderId", orderId,
                 "reservationId", order.sourceReservationId(),
-                "productId", order.productId(),
-                "equipmentUnitId", order.equipmentUnitId()
+                "productId", order.productId()
         ));
         auditLogWriter.write(new AuditCommand(
                 user.userId(), "ORDER_CONFIRMED", "ORDER", orderId, "SUCCESS",

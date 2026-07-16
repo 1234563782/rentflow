@@ -107,12 +107,12 @@
 
     <insert id="insertReservation">
         INSERT INTO inventory_reservations (
-            id, user_id, product_id, equipment_unit_id, source_quote_id,
+            id, user_id, product_id, source_quote_id,
             start_at, end_at, expires_at, status, currency,
             pricing_version, pricing_rule, billing_days, daily_rate,
             rental_amount, deposit_amount, total_amount, rounding_mode, price_snapshot
         ) VALUES (
-            #{id}, #{userId}, #{quote.productId}, #{equipmentUnitId}, #{quote.quoteId},
+            #{id}, #{userId}, #{quote.productId}, #{quote.quoteId},
             #{quote.startAt}, #{quote.endAt}, #{expiresAt}, 'ACTIVE', #{quote.currency},
             #{quote.pricingVersion}, #{quote.pricingRule}, #{quote.billingDays}, #{quote.dailyRate},
             #{quote.rentalAmount}, #{quote.depositAmount}, #{quote.totalAmount},
@@ -123,14 +123,14 @@
     <select id="findById" resultType="com.rentflow.inventory.infrastructure.ReservationRow">
         SELECT <include refid="reservationColumns"/>
         FROM inventory_reservations r
-        JOIN equipment_units eu ON eu.id = r.equipment_unit_id
+        LEFT JOIN equipment_units eu ON eu.id = r.equipment_unit_id
         WHERE r.id = #{reservationId}
     </select>
 
     <select id="lockById" resultType="com.rentflow.inventory.infrastructure.ReservationRow">
         SELECT <include refid="reservationColumns"/>
         FROM inventory_reservations r
-        JOIN equipment_units eu ON eu.id = r.equipment_unit_id
+        LEFT JOIN equipment_units eu ON eu.id = r.equipment_unit_id
         WHERE r.id = #{reservationId}
         FOR UPDATE
     </select>
@@ -200,7 +200,7 @@
                r.price_snapshot,
                CURRENT_TIMESTAMP(6) AS database_now
         FROM inventory_reservations r
-        JOIN equipment_units eu ON eu.id = r.equipment_unit_id
+        LEFT JOIN equipment_units eu ON eu.id = r.equipment_unit_id
         WHERE r.id = #{reservationId}
         FOR UPDATE
     </select>
@@ -229,5 +229,13 @@
         WHERE id = #{reservationId}
           AND status = 'ACTIVE'
           AND expires_at &lt;= CURRENT_TIMESTAMP(6)
+    </update>
+
+    <update id="assignEquipment">
+        UPDATE inventory_reservations
+        SET equipment_unit_id = #{equipmentUnitId}
+        WHERE id = #{reservationId}
+          AND status = 'CONSUMED'
+          AND equipment_unit_id IS NULL
     </update>
 </mapper>

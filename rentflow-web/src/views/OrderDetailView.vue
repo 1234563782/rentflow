@@ -78,7 +78,7 @@ onBeforeUnmount(() => window.clearInterval(timer))
         </div>
       </header>
       <div class="order-detail-sheet">
-        <div class="order-product-summary"><div class="order-icon"><el-icon><Check /></el-icon></div><div><span>{{ order.productModel }}</span><h2>{{ order.productName }}</h2><p>设备编号 {{ order.equipmentDisplayCode }}</p></div></div>
+        <div class="order-product-summary"><div class="order-icon"><el-icon><Check /></el-icon></div><div><span>{{ order.productModel }}</span><h2>{{ order.productName }}</h2><p>{{ order.equipmentDisplayCode ? `设备编号 ${order.equipmentDisplayCode}` : '具体设备将在出库前分配' }}</p></div></div>
         <div class="checkout-section period-summary"><div><span>开始时间</span><strong>{{ formatDateTime(order.startAt, auth.user?.timezone) }}</strong></div><div><span>结束时间</span><strong>{{ formatDateTime(order.endAt, auth.user?.timezone) }}</strong></div></div>
         <div class="checkout-section"><span class="section-label">订单金额</span><PriceBreakdown :snapshot="order.priceSnapshot" /></div>
         <div class="checkout-section"><span class="section-label">状态记录</span><el-timeline class="status-timeline"><el-timeline-item v-for="item in order.statusHistory" :key="item.createdAt" type="success" :timestamp="formatDateTime(item.createdAt, auth.user?.timezone)"><strong>{{ statusMeta[item.toStatus].label }}</strong><p>{{ item.reason || '状态已更新' }}</p></el-timeline-item></el-timeline></div>

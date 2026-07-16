@@ -41,4 +41,12 @@ public class ReservationOrderAccessService implements ReservationOrderAccess {
     public int expireForOrder(String reservationId) {
         return reservationMapper.expireForOrder(Ulid.requireValid(reservationId));
     }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public int assignEquipment(String reservationId, String equipmentUnitId) {
+        return reservationMapper.assignEquipment(
+                Ulid.requireValid(reservationId), Ulid.requireValid(equipmentUnitId)
+        );
+    }
 }

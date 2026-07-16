@@ -8,8 +8,9 @@ import com.rentflow.identity.api.CurrentUser;
 import com.rentflow.identity.api.CurrentUserProvider;
 import com.rentflow.inventory.api.CreateReservationRequest;
 import com.rentflow.inventory.api.ReservationResponse;
-import com.rentflow.inventory.infrastructure.EquipmentCandidate;
-import com.rentflow.inventory.infrastructure.InventoryLockMapper;
+import com.rentflow.inventory.domain.HourlyCapacitySlots;
+import com.rentflow.inventory.infrastructure.CapacitySlotMapper;
+import com.rentflow.inventory.infrastructure.CapacitySlotRow;
 import com.rentflow.inventory.infrastructure.ReservationIdempotencyRow;
 import com.rentflow.inventory.infrastructure.ReservationMapper;
 import com.rentflow.inventory.infrastructure.ReservationRow;
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -38,7 +40,6 @@ class ReservationApplicationServiceTest {
     private static final String USER_ID = "01J00000000000000000000001";
     private static final String QUOTE_ID = "01J00000000000000000010001";
     private static final String PRODUCT_ID = "01J00000000000000000000101";
-    private static final String EQUIPMENT_ID = "01J00000000000000000001001";
     private static final String RESERVATION_ID = "01J00000000000000000020001";
 
     @Test
@@ -46,7 +47,7 @@ class ReservationApplicationServiceTest {
         CurrentUserProvider users = mock(CurrentUserProvider.class);
         QuoteReservationAccess quotes = mock(QuoteReservationAccess.class);
         ReservationMapper reservations = mock(ReservationMapper.class);
-        InventoryLockMapper inventory = mock(InventoryLockMapper.class);
+        CapacitySlotMapper capacity = mock(CapacitySlotMapper.class);
         AuditLogWriter audit = mock(AuditLogWriter.class);
         ObjectMapper mapper = JsonMapper.builder().addModule(new JavaTimeModule()).build();
         CreateReservationRequest request = new CreateReservationRequest(QUOTE_ID);
@@ -72,8 +73,13 @@ class ReservationApplicationServiceTest {
                 )));
         when(quotes.lockQuote(QUOTE_ID)).thenReturn(Optional.of(quote));
         when(reservations.lockUserGuard(USER_ID)).thenReturn(USER_ID);
-        when(inventory.lockAvailableCandidate(PRODUCT_ID, startAt, endAt))
-                .thenReturn(Optional.of(new EquipmentCandidate(EQUIPMENT_ID, "A7M4-01")));
+        List<Instant> slots = HourlyCapacitySlots.covering(startAt, endAt);
+        when(capacity.countEnabledUnits(PRODUCT_ID)).thenReturn(1);
+        when(capacity.lockSlots(PRODUCT_ID, slots))
+                .thenReturn(slots.stream().map(slot -> new CapacitySlotRow(slot, 1)).toList());
+        when(capacity.updateSlotCapacities(PRODUCT_ID, 1, slots)).thenReturn(slots.size());
+        when(capacity.lockEffectiveClaims(PRODUCT_ID, slots)).thenReturn(List.of());
+        when(capacity.insertClaims(anyString(), anyString(), any())).thenReturn(slots.size());
         when(reservations.computeExpiration(startAt, 900)).thenReturn(expiresAt);
         when(reservations.insertReservation(any())).thenReturn(1);
         when(reservations.findById(anyString())).thenReturn(Optional.of(row(startAt, endAt, expiresAt)));
@@ -84,7 +90,7 @@ class ReservationApplicationServiceTest {
                 users,
                 quotes,
                 reservations,
-                inventory,
+                capacity,
                 audit,
                 new ReservationProperties(900, 3, 100, 60_000),
                 mapper,
@@ -95,10 +101,11 @@ class ReservationApplicationServiceTest {
         ReservationResponse response = service.create("reservation-key-01", request);
 
         assertThat(response.reservationId()).isEqualTo(RESERVATION_ID);
-        assertThat(response.equipmentDisplayCode()).isEqualTo("A7M4-01");
+        assertThat(response.equipmentDisplayCode()).isNull();
         assertThat(response.priceSnapshot().totalAmount()).isEqualTo("3200.00");
         verify(reservations).countBySourceQuote(QUOTE_ID);
-        verify(inventory).countConflictsAfterLock(EQUIPMENT_ID, startAt, endAt);
+        verify(capacity).lockSlots(PRODUCT_ID, slots);
+        verify(capacity).insertClaims(anyString(), anyString(), any());
         verify(audit).write(any());
     }
 
@@ -123,7 +130,7 @@ class ReservationApplicationServiceTest {
                 users,
                 mock(QuoteReservationAccess.class),
                 reservations,
-                mock(InventoryLockMapper.class),
+                mock(CapacitySlotMapper.class),
                 mock(AuditLogWriter.class),
                 new ReservationProperties(900, 3, 100, 60_000),
                 new ObjectMapper(),
@@ -166,8 +173,8 @@ class ReservationApplicationServiceTest {
                 RESERVATION_ID,
                 USER_ID,
                 PRODUCT_ID,
-                EQUIPMENT_ID,
-                "A7M4-01",
+                null,
+                null,
                 QUOTE_ID,
                 startAt,
                 endAt,

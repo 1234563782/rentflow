@@ -327,6 +327,29 @@ paths:
         '409':
           $ref: '#/components/responses/StateConflict'
 
+  /api/v1/admin/orders/{orderId}/equipment-assignment:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    post:
+      tags: [Orders]
+      operationId: assignEquipmentToOrder
+      description: Assigns a concrete equipment unit to a confirmed order before dispatch.
+      responses:
+        '200':
+          description: Concrete equipment assigned, or the existing assignment returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/OrderNotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -714,8 +737,8 @@ components:
         productId:
           $ref: '#/components/schemas/Ulid'
         equipmentDisplayCode:
-          type: string
-          description: User-facing code; internal serial number is never returned.
+          type: [string, 'null']
+          description: Assigned before dispatch; null while the reservation only holds product capacity.
         startAt:
           $ref: '#/components/schemas/Timestamp'
         endAt:
@@ -754,7 +777,8 @@ components:
         productModel:
           type: string
         equipmentDisplayCode:
-          type: string
+          type: [string, 'null']
+          description: Concrete unit assigned before dispatch; null until assignment.
         status:
           $ref: '#/components/schemas/OrderStatus'
         effectiveStatus:
@@ -812,7 +836,8 @@ components:
         productModel:
           type: string
         equipmentDisplayCode:
-          type: string
+          type: [string, 'null']
+          description: Concrete unit assigned before dispatch; null until assignment.
         status:
           $ref: '#/components/schemas/OrderStatus'
         effectiveStatus:

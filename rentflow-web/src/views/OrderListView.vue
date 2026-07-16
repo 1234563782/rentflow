@@ -63,7 +63,7 @@ onBeforeUnmount(() => window.clearInterval(timer))
     <div v-else-if="result.items.length" class="order-list">
       <article v-for="order in result.items" :key="order.orderId" class="order-row" @click="openOrder(order)">
         <div class="order-icon"><el-icon><Box /></el-icon></div>
-        <div class="order-main"><span>{{ order.productModel }} · {{ order.equipmentDisplayCode }}</span><h2>{{ order.productName }}</h2><p>{{ formatDateTime(order.startAt, auth.user?.timezone) }} 至 {{ formatDateTime(order.endAt, auth.user?.timezone) }}</p></div>
+        <div class="order-main"><span>{{ order.productModel }} · {{ order.equipmentDisplayCode || '待分配设备' }}</span><h2>{{ order.productName }}</h2><p>{{ formatDateTime(order.startAt, auth.user?.timezone) }} 至 {{ formatDateTime(order.endAt, auth.user?.timezone) }}</p></div>
         <div class="order-amount">
           <el-tag :type="statusMeta[order.effectiveStatus].type" effect="plain">{{ statusMeta[order.effectiveStatus].label }}</el-tag>
           <strong>{{ formatMoney(order.priceSnapshot.totalAmount) }}</strong>

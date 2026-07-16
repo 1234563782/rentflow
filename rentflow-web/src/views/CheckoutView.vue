@@ -117,9 +117,9 @@ onBeforeUnmount(() => window.clearInterval(timer))
         <div><span>{{ isPending ? '订单确认剩余' : '当前订单状态' }}</span><strong>{{ isPending ? countdown : order.effectiveStatus }}</strong></div>
       </div>
       <div class="checkout-section">
-        <span class="section-label">已锁定设备</span>
+        <span class="section-label">已锁定商品容量</span>
         <h2>{{ order.productName }}</h2>
-        <p>{{ order.productModel }} · 设备编号 {{ order.equipmentDisplayCode }}</p>
+        <p>{{ order.productModel }} · {{ order.equipmentDisplayCode ? `设备编号 ${order.equipmentDisplayCode}` : '具体设备将在出库前分配' }}</p>
       </div>
       <div class="checkout-section period-summary">
         <div><span>开始时间</span><strong>{{ formatDateTime(order.startAt, auth.user?.timezone) }}</strong></div>

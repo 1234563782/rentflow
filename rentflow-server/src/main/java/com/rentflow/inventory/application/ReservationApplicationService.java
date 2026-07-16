@@ -10,8 +10,9 @@ import com.rentflow.identity.api.CurrentUserProvider;
 import com.rentflow.inventory.api.CreateReservationRequest;
 import com.rentflow.inventory.api.InventoryHoldCreator;
 import com.rentflow.inventory.api.ReservationResponse;
-import com.rentflow.inventory.infrastructure.EquipmentCandidate;
-import com.rentflow.inventory.infrastructure.InventoryLockMapper;
+import com.rentflow.inventory.domain.HourlyCapacitySlots;
+import com.rentflow.inventory.infrastructure.CapacityClaimRow;
+import com.rentflow.inventory.infrastructure.CapacitySlotMapper;
 import com.rentflow.inventory.infrastructure.ReservationIdempotencyRow;
 import com.rentflow.inventory.infrastructure.ReservationInsert;
 import com.rentflow.inventory.infrastructure.ReservationMapper;
@@ -35,6 +36,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -43,7 +46,7 @@ public class ReservationApplicationService implements InventoryHoldCreator {
     private final CurrentUserProvider currentUserProvider;
     private final QuoteReservationAccess quoteAccess;
     private final ReservationMapper reservationMapper;
-    private final InventoryLockMapper inventoryLockMapper;
+    private final CapacitySlotMapper capacitySlotMapper;
     private final AuditLogWriter auditLogWriter;
     private final ReservationProperties properties;
     private final ObjectMapper objectMapper;
@@ -54,7 +57,7 @@ public class ReservationApplicationService implements InventoryHoldCreator {
             CurrentUserProvider currentUserProvider,
             QuoteReservationAccess quoteAccess,
             ReservationMapper reservationMapper,
-            InventoryLockMapper inventoryLockMapper,
+            CapacitySlotMapper capacitySlotMapper,
             AuditLogWriter auditLogWriter,
             ReservationProperties properties,
             ObjectMapper objectMapper,
@@ -64,7 +67,7 @@ public class ReservationApplicationService implements InventoryHoldCreator {
         this.currentUserProvider = currentUserProvider;
         this.quoteAccess = quoteAccess;
         this.reservationMapper = reservationMapper;
-        this.inventoryLockMapper = inventoryLockMapper;
+        this.capacitySlotMapper = capacitySlotMapper;
         this.auditLogWriter = auditLogWriter;
         this.properties = properties;
         this.objectMapper = objectMapper;
@@ -240,37 +243,20 @@ public class ReservationApplicationService implements InventoryHoldCreator {
             );
         }
 
-        EquipmentCandidate equipment = inventoryLockMapper.lockAvailableCandidate(
-                quote.productId(),
-                quote.startAt(),
-                quote.endAt()
-        ).orElseThrow(() -> business(
-                "INVENTORY_NOT_AVAILABLE",
-                "No equipment is available for the requested period",
-                HttpStatus.CONFLICT
-        ));
-        if (inventoryLockMapper.countConflictsAfterLock(
-                equipment.equipmentUnitId(),
-                quote.startAt(),
-                quote.endAt()
-        ) > 0) {
-            throw business(
-                    "INVENTORY_NOT_AVAILABLE",
-                    "No equipment is available for the requested period",
-                    HttpStatus.CONFLICT
-            );
-        }
-
         Instant expiresAt = reservationMapper.computeExpiration(quote.startAt(), properties.ttlSeconds());
         String reservationId = Ulid.next();
+        List<Instant> capacitySlots = lockAvailableCapacity(quote);
         if (reservationMapper.insertReservation(new ReservationInsert(
                 reservationId,
                 user.userId(),
-                equipment.equipmentUnitId(),
                 expiresAt,
                 quote
         )) != 1) {
             throw new IllegalStateException("Reservation insert did not affect exactly one row");
+        }
+        if (capacitySlotMapper.insertClaims(reservationId, quote.productId(), capacitySlots)
+                != capacitySlots.size()) {
+            throw new IllegalStateException("Reservation capacity claim count did not match requested slots");
         }
         ReservationRow row = reservationMapper.findById(reservationId)
                 .orElseThrow(() -> new IllegalStateException("Created reservation cannot be reloaded"));
@@ -283,10 +269,48 @@ public class ReservationApplicationService implements InventoryHoldCreator {
                 Map.of(
                         "sourceQuoteId", quote.quoteId(),
                         "productId", quote.productId(),
-                        "equipmentUnitId", equipment.equipmentUnitId()
+                        "capacitySlotCount", capacitySlots.size()
                 )
         ));
         return response(row);
+    }
+
+    private List<Instant> lockAvailableCapacity(LockedQuote quote) {
+        List<Instant> slots = HourlyCapacitySlots.covering(quote.startAt(), quote.endAt());
+        int initialCapacity = capacitySlotMapper.countEnabledUnits(quote.productId());
+        if (initialCapacity < 1) {
+            throw inventoryNotAvailable();
+        }
+        capacitySlotMapper.insertMissingSlots(quote.productId(), initialCapacity, slots);
+        if (capacitySlotMapper.lockSlots(quote.productId(), slots).size() != slots.size()) {
+            throw new IllegalStateException("Not all requested capacity slots could be locked");
+        }
+        int currentCapacity = capacitySlotMapper.countEnabledUnits(quote.productId());
+        capacitySlotMapper.updateSlotCapacities(quote.productId(), currentCapacity, slots);
+        if (currentCapacity < 1 || maxClaims(capacitySlotMapper.lockEffectiveClaims(
+                quote.productId(), slots
+        )) >= currentCapacity) {
+            throw inventoryNotAvailable();
+        }
+        return slots;
+    }
+
+    private int maxClaims(List<CapacityClaimRow> claims) {
+        Map<Instant, Integer> counts = new HashMap<>();
+        int max = 0;
+        for (CapacityClaimRow claim : claims) {
+            int count = counts.merge(claim.slotStart(), 1, Integer::sum);
+            max = Math.max(max, count);
+        }
+        return max;
+    }
+
+    private static BusinessException inventoryNotAvailable() {
+        return business(
+                "INVENTORY_NOT_AVAILABLE",
+                "No equipment capacity is available for the requested period",
+                HttpStatus.CONFLICT
+        );
     }
 
     private ReservationResponse replay(ReservationIdempotencyRow idempotency) {

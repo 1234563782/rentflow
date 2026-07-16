@@ -3,49 +3,45 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.rentflow.inventory.infrastructure.InventoryLockMapper">
-    <select id="lockAvailableCandidate" resultType="com.rentflow.inventory.infrastructure.EquipmentCandidate">
+    <select id="listAllocationCandidates" resultType="com.rentflow.inventory.infrastructure.EquipmentCandidate">
         SELECT eu.id AS equipment_unit_id, eu.display_code
         FROM equipment_units eu
         WHERE eu.product_id = #{productId}
           AND eu.status = 'AVAILABLE'
-          AND NOT EXISTS (
-              SELECT 1
-              FROM inventory_reservations r
-              WHERE r.equipment_unit_id = eu.id
-                AND r.status = 'ACTIVE'
-                AND r.expires_at &gt; CURRENT_TIMESTAMP(6)
-                AND r.start_at &lt; #{endAt}
-                AND r.end_at &gt; #{startAt}
-          )
-          AND NOT EXISTS (
-              SELECT 1
-              FROM rental_orders o
-              WHERE o.equipment_unit_id = eu.id
-                AND o.status = 'CONFIRMED'
-                AND o.start_at &lt; #{endAt}
-                AND o.end_at &gt; #{startAt}
-          )
         ORDER BY eu.id ASC
+    </select>
+
+    <select id="lockAllocationCandidate" resultType="com.rentflow.inventory.infrastructure.EquipmentCandidate">
+        SELECT eu.id AS equipment_unit_id, eu.display_code
+        FROM equipment_units eu
+        WHERE eu.product_id = #{productId}
+          AND eu.id = #{equipmentUnitId}
+          AND eu.status = 'AVAILABLE'
+        FOR UPDATE
+    </select>
+
+    <select id="lockActiveReservationConflict" resultType="string">
+        SELECT r.id
+        FROM inventory_reservations r
+        WHERE r.equipment_unit_id = #{equipmentUnitId}
+          AND r.status = 'ACTIVE'
+          AND r.expires_at &gt; CURRENT_TIMESTAMP(6)
+          AND r.start_at &lt; #{endAt}
+          AND r.end_at &gt; #{startAt}
+        ORDER BY r.id ASC
         LIMIT 1
         FOR UPDATE
     </select>
 
-    <select id="countConflictsAfterLock" resultType="int">
-        SELECT (
-            SELECT COUNT(*)
-            FROM inventory_reservations r
-            WHERE r.equipment_unit_id = #{equipmentUnitId}
-              AND r.status = 'ACTIVE'
-              AND r.expires_at &gt; CURRENT_TIMESTAMP(6)
-              AND r.start_at &lt; #{endAt}
-              AND r.end_at &gt; #{startAt}
-        ) + (
-            SELECT COUNT(*)
-            FROM rental_orders o
-            WHERE o.equipment_unit_id = #{equipmentUnitId}
-              AND o.status = 'CONFIRMED'
-              AND o.start_at &lt; #{endAt}
-              AND o.end_at &gt; #{startAt}
-        )
+    <select id="lockConfirmedOrderConflict" resultType="string">
+        SELECT o.id
+        FROM rental_orders o
+        WHERE o.equipment_unit_id = #{equipmentUnitId}
+          AND o.status = 'CONFIRMED'
+          AND o.start_at &lt; #{endAt}
+          AND o.end_at &gt; #{startAt}
+        ORDER BY o.id ASC
+        LIMIT 1
+        FOR UPDATE
     </select>
 </mapper>

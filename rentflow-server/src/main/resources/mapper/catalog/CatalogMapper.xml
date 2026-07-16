@@ -12,10 +12,10 @@
             AND p.equipment_role = #{equipmentRole}
         </if>
         <if test="brand != null">
-            AND LOWER(p.brand) = LOWER(#{brand})
+            AND p.brand = #{brand}
         </if>
         <if test="model != null">
-            AND LOWER(p.model) = LOWER(#{model})
+            AND p.model = #{model}
         </if>
         <if test="maxDailyRate != null">
             AND p.daily_rate &lt;= #{maxDailyRate}

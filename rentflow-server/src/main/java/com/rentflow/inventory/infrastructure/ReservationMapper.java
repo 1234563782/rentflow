@@ -71,4 +71,9 @@ public interface ReservationMapper {
     int releaseForOrder(@Param("reservationId") String reservationId);
 
     int expireForOrder(@Param("reservationId") String reservationId);
+
+    int assignEquipment(
+            @Param("reservationId") String reservationId,
+            @Param("equipmentUnitId") String equipmentUnitId
+    );
 }

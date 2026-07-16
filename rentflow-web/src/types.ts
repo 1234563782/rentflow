@@ -84,7 +84,7 @@ export interface Reservation {
   reservationId: string
   sourceQuoteId: string
   productId: string
-  equipmentDisplayCode: string
+  equipmentDisplayCode: string | null
   startAt: string
   endAt: string
   expiresAt: string
@@ -101,7 +101,7 @@ export interface Order {
   productId: string
   productName: string
   productModel: string
-  equipmentDisplayCode: string
+  equipmentDisplayCode: string | null
   status: OrderStatus
   effectiveStatus: OrderStatus
   startAt: string

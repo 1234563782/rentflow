@@ -57,6 +57,12 @@ public interface OrderMapper {
 
     int expirePending(@Param("orderId") String orderId);
 
+    int assignEquipment(
+            @Param("orderId") String orderId,
+            @Param("equipmentUnitId") String equipmentUnitId,
+            @Param("equipmentDisplayCode") String equipmentDisplayCode
+    );
+
     List<ExpiredOrder> lockExpiredBatch(@Param("batchSize") int batchSize);
 
     List<OrderRow> listForUser(

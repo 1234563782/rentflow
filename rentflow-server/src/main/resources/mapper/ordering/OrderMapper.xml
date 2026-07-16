@@ -95,7 +95,7 @@
                r.deposit_amount, r.total_amount, r.rounding_mode, r.price_snapshot
         FROM inventory_reservations r
         JOIN products p ON p.id = r.product_id
-        JOIN equipment_units eu ON eu.id = r.equipment_unit_id
+        LEFT JOIN equipment_units eu ON eu.id = r.equipment_unit_id
         WHERE r.id = #{reservationId}
           AND r.status = 'ACTIVE'
           AND r.expires_at &gt; CURRENT_TIMESTAMP(6)
@@ -145,6 +145,15 @@
         WHERE id = #{orderId}
           AND status = 'PENDING_CONFIRMATION'
           AND expires_at &lt;= CURRENT_TIMESTAMP(6)
+    </update>
+
+    <update id="assignEquipment">
+        UPDATE rental_orders
+        SET equipment_unit_id = #{equipmentUnitId},
+            equipment_display_code = #{equipmentDisplayCode}
+        WHERE id = #{orderId}
+          AND status = 'CONFIRMED'
+          AND equipment_unit_id IS NULL
     </update>
 
     <select id="lockExpiredBatch" resultType="com.rentflow.ordering.infrastructure.ExpiredOrder">

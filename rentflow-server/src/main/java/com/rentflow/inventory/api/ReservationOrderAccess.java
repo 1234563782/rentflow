@@ -10,4 +10,6 @@ public interface ReservationOrderAccess {
     int releaseForOrder(String reservationId);
 
     int expireForOrder(String reservationId);
+
+    int assignEquipment(String reservationId, String equipmentUnitId);
 }

@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.rentflow.inventory.infrastructure.CapacitySlotMapper">
+    <select id="countEnabledUnits" resultType="int">
+        SELECT COUNT(*)
+        FROM equipment_units
+        WHERE product_id = #{productId}
+          AND status = 'AVAILABLE'
+    </select>
+
+    <insert id="insertMissingSlots">
+        INSERT IGNORE INTO product_capacity_slots (product_id, slot_start, capacity)
+        VALUES
+        <foreach collection="slotStarts" item="slotStart" separator=",">
+            (#{productId}, #{slotStart}, #{capacity})
+        </foreach>
+    </insert>
+
+    <select id="lockSlots" resultType="com.rentflow.inventory.infrastructure.CapacitySlotRow">
+        SELECT slot_start, capacity
+        FROM product_capacity_slots
+        WHERE product_id = #{productId}
+          AND slot_start IN
+          <foreach collection="slotStarts" item="slotStart" open="(" separator="," close=")">
+              #{slotStart}
+          </foreach>
+        ORDER BY slot_start ASC
+        FOR UPDATE
+    </select>
+
+    <update id="updateSlotCapacities">
+        UPDATE product_capacity_slots
+        SET capacity = #{capacity}
+        WHERE product_id = #{productId}
+          AND slot_start IN
+          <foreach collection="slotStarts" item="slotStart" open="(" separator="," close=")">
+              #{slotStart}
+          </foreach>
+    </update>
+
+    <select id="maxEffectiveClaimsForDisplay" resultType="int">
+        SELECT COALESCE(MAX(claimed_count), 0)
+        FROM (
+            SELECT claims.slot_start, COUNT(*) AS claimed_count
+            FROM reservation_capacity_claims claims
+            JOIN inventory_reservations r ON r.id = claims.reservation_id
+            WHERE claims.product_id = #{productId}
+              AND claims.slot_start IN
+              <foreach collection="slotStarts" item="slotStart" open="(" separator="," close=")">
+                  #{slotStart}
+              </foreach>
+              AND (
+                  (r.status = 'ACTIVE' AND r.expires_at &gt; CURRENT_TIMESTAMP(6))
+                  OR r.status = 'CONSUMED'
+              )
+            GROUP BY claims.slot_start
+        ) effective_claims
+    </select>
+
+    <select id="lockEffectiveClaims" resultType="com.rentflow.inventory.infrastructure.CapacityClaimRow">
+        SELECT claims.reservation_id, claims.slot_start
+        FROM reservation_capacity_claims claims
+        JOIN inventory_reservations r ON r.id = claims.reservation_id
+        WHERE claims.product_id = #{productId}
+          AND claims.slot_start IN
+          <foreach collection="slotStarts" item="slotStart" open="(" separator="," close=")">
+              #{slotStart}
+          </foreach>
+          AND (
+              (r.status = 'ACTIVE' AND r.expires_at &gt; CURRENT_TIMESTAMP(6))
+              OR r.status = 'CONSUMED'
+          )
+        ORDER BY claims.slot_start ASC, claims.reservation_id ASC
+        FOR UPDATE
+    </select>
+
+    <insert id="insertClaims">
+        INSERT INTO reservation_capacity_claims (reservation_id, product_id, slot_start)
+        VALUES
+        <foreach collection="slotStarts" item="slotStart" separator=",">
+            (#{reservationId}, #{productId}, #{slotStart})
+        </foreach>
+    </insert>
+</mapper>
