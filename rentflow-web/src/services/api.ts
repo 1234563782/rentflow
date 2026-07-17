@@ -1,7 +1,7 @@
 import { http } from './http'
 import type {
-  Availability, Category, CreateReviewRequest, LoginResponse, Order, OrderDetail, Page, ProductDetail,
-  ProductReview, ProductSummary, Quote, Reservation, ReviewPage,
+  Availability, Category, CreateReviewRequest, LoginResponse, Notification, Order, OrderDetail, Page, ProductDetail,
+  ProductReview, ProductSummary, Quote, Reservation, ReviewPage, UnreadNotificationCount,
 } from '@/types'
 
 export const authApi = {
@@ -36,6 +36,18 @@ export const reviewApi = {
   },
 }
 
+export const notificationApi = {
+  async list(params: { unreadOnly?: boolean; page: number; size: number }) {
+    return (await http.get<Page<Notification>>('/api/v1/notifications', { params })).data
+  },
+  async unreadCount() {
+    return (await http.get<UnreadNotificationCount>('/api/v1/notifications/unread-count')).data
+  },
+  async markRead(notificationId: string) {
+    await http.post(`/api/v1/notifications/${notificationId}/read`)
+  },
+}
+
 export const quoteApi = {
   async create(productId: string, startAt: string, endAt: string) {
     return (await http.post<Quote>('/api/v1/quotes', { productId, startAt, endAt })).data
@@ -61,6 +73,11 @@ export const orderApi = {
   },
   async cancel(orderId: string, idempotencyKey: string) {
     return (await http.post<Order>(`/api/v1/orders/${orderId}/cancel`, null, {
+      headers: { 'Idempotency-Key': idempotencyKey },
+    })).data
+  },
+  async receive(orderId: string, idempotencyKey: string) {
+    return (await http.post<Order>(`/api/v1/orders/${orderId}/receive`, null, {
       headers: { 'Idempotency-Key': idempotencyKey },
     })).data
   },

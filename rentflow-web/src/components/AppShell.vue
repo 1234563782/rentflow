@@ -1,13 +1,20 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ChatDotRound, Goods, List, SwitchButton, User } from '@element-plus/icons-vue'
+import { Bell, ChatDotRound, Goods, List, SwitchButton, User } from '@element-plus/icons-vue'
+import { notificationApi } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
+import type { Notification } from '@/types'
+import { formatDateTime } from '@/utils'
 
 const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
+const notifications = ref<Notification[]>([])
+const unreadCount = ref(0)
+const notificationLoading = ref(false)
+let notificationTimer: number | undefined
 
 function logout() {
   auth.logout()
@@ -20,8 +27,57 @@ function unauthorized() {
   router.replace({ name: 'login', query: { redirect: route.fullPath } })
 }
 
-onMounted(() => window.addEventListener('rentflow:unauthorized', unauthorized))
-onBeforeUnmount(() => window.removeEventListener('rentflow:unauthorized', unauthorized))
+async function refreshNotifications() {
+  if (!auth.isAuthenticated) return
+  notificationLoading.value = true
+  try {
+    const [page, count] = await Promise.all([
+      notificationApi.list({ unreadOnly: true, page: 0, size: 20 }),
+      notificationApi.unreadCount(),
+    ])
+    notifications.value = page.items
+    unreadCount.value = count.count
+  } catch {
+    // Notification refresh is non-blocking; the HTTP interceptor handles authentication expiry.
+  } finally {
+    notificationLoading.value = false
+  }
+}
+
+async function markNotificationRead(notification: Notification) {
+  if (notification.readAt) return
+  try {
+    await notificationApi.markRead(notification.id)
+    notifications.value = notifications.value.filter(({ id }) => id !== notification.id)
+    unreadCount.value = Math.max(0, unreadCount.value - 1)
+  } catch {
+    ElMessage.error('通知状态更新失败，请稍后重试')
+  }
+}
+
+function handleWindowFocus() {
+  void refreshNotifications()
+}
+
+watch(() => auth.isAuthenticated, (isAuthenticated) => {
+  if (isAuthenticated) void refreshNotifications()
+  else {
+    notifications.value = []
+    unreadCount.value = 0
+  }
+})
+
+onMounted(() => {
+  window.addEventListener('rentflow:unauthorized', unauthorized)
+  window.addEventListener('focus', handleWindowFocus)
+  void refreshNotifications()
+  notificationTimer = window.setInterval(() => { void refreshNotifications() }, 60_000)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('rentflow:unauthorized', unauthorized)
+  window.removeEventListener('focus', handleWindowFocus)
+  window.clearInterval(notificationTimer)
+})
 </script>
 
 <template>
@@ -38,6 +94,25 @@ onBeforeUnmount(() => window.removeEventListener('rentflow:unauthorized', unauth
       </nav>
       <div class="topbar-actions">
         <template v-if="auth.isAuthenticated">
+          <el-popover placement="bottom-end" :width="360" trigger="click" popper-class="notification-popover" @show="refreshNotifications">
+            <template #reference>
+              <el-badge :value="unreadCount" :hidden="unreadCount === 0" :max="99" class="notification-badge">
+                <el-button :icon="Bell" circle text title="通知" aria-label="通知" />
+              </el-badge>
+            </template>
+            <div class="notification-panel">
+              <div class="notification-panel__header"><strong>通知</strong><span v-if="unreadCount">{{ unreadCount }} 条未读</span></div>
+              <div v-if="notificationLoading && !notifications.length" class="notification-panel__loading"><el-skeleton animated :rows="3" /></div>
+              <el-empty v-else-if="!notifications.length" :image-size="56" description="暂无未读通知" />
+              <div v-else class="notification-list">
+                <button v-for="notification in notifications" :key="notification.id" class="notification-item" type="button" @click="markNotificationRead(notification)">
+                  <strong>{{ notification.title }}</strong>
+                  <span>{{ notification.content }}</span>
+                  <time>{{ formatDateTime(notification.createdAt, auth.user?.timezone) }}</time>
+                </button>
+              </div>
+            </div>
+          </el-popover>
           <span class="user-chip"><el-icon><User /></el-icon>{{ auth.user?.nickname }}</span>
           <el-button :icon="SwitchButton" circle text title="退出登录" aria-label="退出登录" @click="logout" />
         </template>

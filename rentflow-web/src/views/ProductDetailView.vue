@@ -74,7 +74,7 @@ function changeReviewPage(page: number) {
 
 function reviewEligibilityMessage(cause: unknown) {
   const status = (cause as { response?: { status?: number } }).response?.status
-  return status === 403 ? '仅拥有该设备确认订单的用户可以发布评价。' : apiErrorMessage(cause)
+  return status === 403 ? '仅确认收货的用户可以发布评价。' : apiErrorMessage(cause)
 }
 
 async function submitReview() {
@@ -166,7 +166,7 @@ onBeforeUnmount(() => window.clearInterval(timer))
             <div><dt>固定押金</dt><dd>{{ formatMoney(product.fixedDeposit) }}</dd></div>
           </dl>
 
-          <section class="review-section" aria-labelledby="review-heading">
+          <section id="reviews" class="review-section" aria-labelledby="review-heading">
             <header class="review-heading">
               <div><span class="eyebrow">用户评价</span><h2 id="review-heading">来自真实租赁用户的反馈</h2></div>
               <div v-if="reviewStatistics" class="review-summary">
@@ -176,12 +176,12 @@ onBeforeUnmount(() => window.clearInterval(timer))
             </header>
 
             <div v-if="auth.isAuthenticated" class="review-composer">
-              <div class="review-composer-heading"><strong>写评价</strong><span>确认订单后即可发布</span></div>
+              <div class="review-composer-heading"><strong>写评价</strong><span>确认收货后即可发布</span></div>
               <el-rate v-model="reviewRating" aria-label="评分" />
               <el-input v-model="reviewContent" type="textarea" :rows="3" maxlength="500" show-word-limit placeholder="分享设备使用感受，帮助下一位租户做决定。" />
               <div class="review-composer-actions"><span>请文明评价，发布后不可修改。</span><el-button type="primary" :loading="submittingReview" @click="submitReview">发布评价</el-button></div>
             </div>
-            <div v-else class="review-login-prompt"><div><strong>登录后写评价</strong><span>拥有确认订单的用户可分享真实使用体验。</span></div><el-button @click="router.push({ name: 'login', query: { redirect: route.fullPath } })">去登录</el-button></div>
+            <div v-else class="review-login-prompt"><div><strong>登录后写评价</strong><span>确认收货的用户可分享真实使用体验。</span></div><el-button @click="router.push({ name: 'login', query: { redirect: route.fullPath } })">去登录</el-button></div>
 
             <div v-if="reviewsLoading" class="review-skeleton"><el-skeleton animated :rows="5" /></div>
             <div v-else-if="reviewsError" class="review-error"><strong>评价加载失败</strong><span>{{ reviewsError }}</span><el-button text type="primary" :icon="RefreshRight" @click="loadReviews">重新加载</el-button></div>

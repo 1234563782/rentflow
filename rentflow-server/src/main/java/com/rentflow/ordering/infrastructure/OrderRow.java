@@ -28,6 +28,7 @@ public record OrderRow(
         String roundingMode,
         Instant createdAt,
         Instant confirmedAt,
+        Instant receivedAt,
         Instant cancelledAt,
         Instant expiredAt,
         Instant databaseNow

@@ -70,6 +70,19 @@ export interface ReviewPage extends Page<ProductReview> {
   statistics: ReviewStatistics
 }
 
+export interface Notification {
+  id: string
+  type: string
+  title: string
+  content: string
+  readAt: string | null
+  createdAt: string
+}
+
+export interface UnreadNotificationCount {
+  count: number
+}
+
 export interface Availability {
   productId: string
   startAt: string
@@ -115,7 +128,7 @@ export interface Reservation {
   priceSnapshot: PriceSnapshot
 }
 
-export type OrderStatus = 'PENDING_CONFIRMATION' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED'
+export type OrderStatus = 'PENDING_CONFIRMATION' | 'CONFIRMED' | 'RECEIVED' | 'CANCELLED' | 'EXPIRED'
 
 export interface Order {
   orderId: string
@@ -132,6 +145,7 @@ export interface Order {
   priceSnapshot: PriceSnapshot
   createdAt: string
   confirmedAt: string | null
+  receivedAt: string | null
   cancelledAt: string | null
   expiredAt: string | null
 }

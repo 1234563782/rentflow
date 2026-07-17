@@ -7,8 +7,8 @@ import com.rentflow.catalog.api.CatalogQuery;
 import com.rentflow.identity.api.CurrentUser;
 import com.rentflow.identity.api.CurrentUserProvider;
 import com.rentflow.messaging.api.DomainEventPublisher;
-import com.rentflow.ordering.api.ConfirmedOrderForReview;
-import com.rentflow.ordering.api.ConfirmedOrderReviewAccess;
+import com.rentflow.ordering.api.ReceivedOrderForReview;
+import com.rentflow.ordering.api.ReceivedOrderReviewAccess;
 import com.rentflow.review.api.CreateReviewRequest;
 import com.rentflow.review.api.ReviewResponse;
 import com.rentflow.review.infrastructure.ReviewIdempotencyRow;
@@ -37,18 +37,18 @@ class ReviewApplicationServiceTest {
     private static final String ORDER_ID = "01J00000000000000000040001";
 
     @Test
-    void choosesEarliestUnreviewedConfirmedOrder() {
+    void choosesEarliestUnreviewedReceivedOrder() {
         Fixtures fixtures = fixtures();
         when(fixtures.mapper.listReviewedOrderIds(USER_ID, PRODUCT_ID)).thenReturn(List.of());
-        when(fixtures.orders.lockEarliestUnreviewedConfirmedOrder(USER_ID, PRODUCT_ID, List.of()))
-                .thenReturn(Optional.of(new ConfirmedOrderForReview(ORDER_ID, PRODUCT_ID, USER_ID)));
+        when(fixtures.orders.lockEarliestUnreviewedReceivedOrder(USER_ID, PRODUCT_ID, List.of()))
+                .thenReturn(Optional.of(new ReceivedOrderForReview(ORDER_ID, PRODUCT_ID, USER_ID)));
         when(fixtures.mapper.insertReview(anyString(), anyString(), anyString(), anyString(), anyInt(), anyString())).thenReturn(1);
         when(fixtures.mapper.findById(anyString())).thenReturn(Optional.of(reviewRow()));
 
         ReviewResponse response = fixtures.service.create(PRODUCT_ID, "review-attempt-key-01", new CreateReviewRequest(5, "Great camera"));
 
         assertThat(response.reviewerName()).isEqualTo("demo");
-        verify(fixtures.orders).lockEarliestUnreviewedConfirmedOrder(USER_ID, PRODUCT_ID, List.of());
+        verify(fixtures.orders).lockEarliestUnreviewedReceivedOrder(USER_ID, PRODUCT_ID, List.of());
     }
 
     private static ReviewRow reviewRow() {
@@ -59,7 +59,7 @@ class ReviewApplicationServiceTest {
         CurrentUserProvider user = mock(CurrentUserProvider.class);
         when(user.requireCurrentUser()).thenReturn(new CurrentUser(USER_ID, "demo", "USER", "UTC"));
         CatalogQuery catalog = mock(CatalogQuery.class);
-        ConfirmedOrderReviewAccess orders = mock(ConfirmedOrderReviewAccess.class);
+        ReceivedOrderReviewAccess orders = mock(ReceivedOrderReviewAccess.class);
         ReviewMapper mapper = mock(ReviewMapper.class);
         AtomicReference<String> digest = new AtomicReference<>();
         when(mapper.insertIdempotency(anyString(), anyString(), anyString(), anyString(), anyString())).thenAnswer(invocation -> { digest.set(invocation.getArgument(4)); return 1; });
@@ -69,5 +69,5 @@ class ReviewApplicationServiceTest {
                 JsonMapper.builder().addModule(new JavaTimeModule()).build(), mock(MySqlIdempotencyMutex.class), new IdempotencyProperties(5, 5)), orders, mapper);
     }
 
-    private record Fixtures(ReviewApplicationService service, ConfirmedOrderReviewAccess orders, ReviewMapper mapper) { }
+    private record Fixtures(ReviewApplicationService service, ReceivedOrderReviewAccess orders, ReviewMapper mapper) { }
 }

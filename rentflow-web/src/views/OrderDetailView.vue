@@ -17,11 +17,13 @@ const loading = ref(true)
 const error = ref('')
 const now = ref(Date.now())
 const cancelling = ref(false)
+const receiving = ref(false)
 let timer: number | undefined
 
 const statusMeta: Record<OrderStatus, { label: string; type: 'success' | 'warning' | 'info' | 'danger' }> = {
   PENDING_CONFIRMATION: { label: '待确认', type: 'warning' },
   CONFIRMED: { label: '已确认', type: 'success' },
+  RECEIVED: { label: '已收货', type: 'success' },
   CANCELLED: { label: '已取消', type: 'info' },
   EXPIRED: { label: '已过期', type: 'danger' },
 }
@@ -29,6 +31,10 @@ const secondsLeft = computed(() => order.value?.effectiveStatus === 'PENDING_CON
   ? Math.max(0, Math.ceil((new Date(order.value.expiresAt).getTime() - now.value) / 1000))
   : 0)
 const countdown = computed(() => `${Math.floor(secondsLeft.value / 60).toString().padStart(2, '0')}:${(secondsLeft.value % 60).toString().padStart(2, '0')}`)
+const needsUrgentConfirmation = computed(() => order.value?.effectiveStatus === 'PENDING_CONFIRMATION'
+  && secondsLeft.value > 0 && secondsLeft.value <= 5 * 60)
+const canReceive = computed(() => order.value?.effectiveStatus === 'CONFIRMED'
+  && now.value >= new Date(order.value.startAt).getTime())
 
 async function load() {
   loading.value = true
@@ -56,6 +62,21 @@ async function cancelOrder() {
   finally { cancelling.value = false }
 }
 
+async function receiveOrder() {
+  if (!order.value || !canReceive.value) return
+  receiving.value = true
+  const storageKey = `rentflow.attempt.receive.${order.value.orderId}`
+  const key = sessionStorage.getItem(storageKey) || newIdempotencyKey()
+  sessionStorage.setItem(storageKey, key)
+  try {
+    await orderApi.receive(order.value.orderId, key)
+    sessionStorage.removeItem(storageKey)
+    ElMessage.success('已确认收货')
+    await load()
+  } catch (cause) { ElMessage.error(apiErrorMessage(cause)) }
+  finally { receiving.value = false }
+}
+
 onMounted(() => { void load(); timer = window.setInterval(() => { now.value = Date.now() }, 1000) })
 onBeforeUnmount(() => window.clearInterval(timer))
 </script>
@@ -66,15 +87,18 @@ onBeforeUnmount(() => window.clearInterval(timer))
     <div v-if="loading" class="order-detail-sheet"><el-skeleton animated :rows="12" /></div>
     <div v-else-if="error" class="state-panel"><h2>订单加载失败</h2><p>{{ error }}</p><el-button :icon="RefreshRight" @click="load">重试</el-button></div>
     <template v-else-if="order">
-      <header class="order-detail-header">
+      <header class="order-detail-header" :class="{ 'order-detail-header--urgent': needsUrgentConfirmation }">
         <div><span class="eyebrow">订单详情</span><h1>{{ order.productName }}</h1><p>订单号 {{ order.orderId }}</p></div>
         <div class="order-header-actions">
           <el-tag size="large" :type="statusMeta[order.effectiveStatus].type" effect="dark">{{ statusMeta[order.effectiveStatus].label }}</el-tag>
           <template v-if="order.effectiveStatus === 'PENDING_CONFIRMATION'">
-            <span class="header-countdown">{{ countdown }}</span>
+            <span class="header-countdown" :class="{ 'header-countdown--urgent': needsUrgentConfirmation }">{{ countdown }}</span>
+            <span v-if="needsUrgentConfirmation" class="urgent-confirmation">即将过期，请尽快确认</span>
             <el-button @click="cancelOrder" :loading="cancelling">取消</el-button>
             <el-button type="primary" @click="router.push(`/orders/${order.orderId}/confirm`)">继续确认</el-button>
           </template>
+          <el-button v-else-if="canReceive" type="primary" :loading="receiving" @click="receiveOrder">确认收货</el-button>
+          <el-button v-else-if="order.effectiveStatus === 'RECEIVED'" type="primary" plain @click="router.push(`/products/${order.productId}#reviews`)">去评价</el-button>
         </div>
       </header>
       <div class="order-detail-sheet">

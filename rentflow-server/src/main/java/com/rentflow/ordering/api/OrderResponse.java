@@ -19,6 +19,7 @@ public record OrderResponse(
         PriceSnapshotView priceSnapshot,
         Instant createdAt,
         Instant confirmedAt,
+        Instant receivedAt,
         Instant cancelledAt,
         Instant expiredAt
 ) {

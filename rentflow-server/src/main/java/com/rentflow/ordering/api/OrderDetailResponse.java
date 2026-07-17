@@ -20,6 +20,7 @@ public record OrderDetailResponse(
         PriceSnapshotView priceSnapshot,
         Instant createdAt,
         Instant confirmedAt,
+        Instant receivedAt,
         Instant cancelledAt,
         Instant expiredAt,
         List<OrderStatusHistoryView> statusHistory

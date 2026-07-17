@@ -36,6 +36,7 @@
         o.rounding_mode,
         o.created_at,
         o.confirmed_at,
+        o.received_at,
         o.cancelled_at,
         o.expired_at,
         CURRENT_TIMESTAMP(6) AS database_now
@@ -119,22 +120,31 @@
         FOR UPDATE
     </select>
 
-    <select id="lockEarliestUnreviewedConfirmedOrder" resultType="com.rentflow.ordering.api.ConfirmedOrderForReview">
+    <select id="lockEarliestUnreviewedReceivedOrder" resultType="com.rentflow.ordering.api.ReceivedOrderForReview">
         SELECT id AS orderId, product_id AS productId, user_id AS userId
         FROM rental_orders
         WHERE user_id = #{userId}
           AND product_id = #{productId}
-          AND status = 'CONFIRMED'
+          AND status = 'RECEIVED'
         <if test="reviewedOrderIds != null and !reviewedOrderIds.isEmpty()">
             AND id NOT IN
             <foreach collection="reviewedOrderIds" item="orderId" open="(" separator="," close=")">
                 #{orderId}
             </foreach>
         </if>
-        ORDER BY confirmed_at ASC, id ASC
+        ORDER BY received_at ASC, id ASC
         LIMIT 1
         FOR UPDATE
     </select>
+
+    <update id="receiveConfirmed">
+        UPDATE rental_orders
+        SET status = 'RECEIVED',
+            received_at = CURRENT_TIMESTAMP(6)
+        WHERE id = #{orderId}
+          AND status = 'CONFIRMED'
+          AND start_at &lt;= CURRENT_TIMESTAMP(6)
+    </update>
 
     <update id="confirmPending">
         UPDATE rental_orders
@@ -182,6 +192,27 @@
         LIMIT #{batchSize}
         FOR UPDATE SKIP LOCKED
     </select>
+
+    <select id="lockConfirmationReminderBatch" resultType="com.rentflow.ordering.infrastructure.ConfirmationReminderOrder">
+        SELECT id, user_id, expires_at
+        FROM rental_orders
+        WHERE status = 'PENDING_CONFIRMATION'
+          AND confirmation_reminder_queued_at IS NULL
+          AND expires_at &gt; CURRENT_TIMESTAMP(6)
+          AND expires_at &lt;= DATE_ADD(CURRENT_TIMESTAMP(6), INTERVAL #{leadTimeMillis} MICROSECOND)
+        ORDER BY expires_at ASC, id ASC
+        LIMIT #{batchSize}
+        FOR UPDATE SKIP LOCKED
+    </select>
+
+    <update id="markConfirmationReminderQueued">
+        UPDATE rental_orders
+        SET confirmation_reminder_queued_at = CURRENT_TIMESTAMP(6)
+        WHERE id = #{orderId}
+          AND status = 'PENDING_CONFIRMATION'
+          AND confirmation_reminder_queued_at IS NULL
+          AND expires_at &gt; CURRENT_TIMESTAMP(6)
+    </update>
 
     <select id="listForUser" resultType="com.rentflow.ordering.infrastructure.OrderRow">
         SELECT <include refid="orderColumns"/>

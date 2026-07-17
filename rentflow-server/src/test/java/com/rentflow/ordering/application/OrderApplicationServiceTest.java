@@ -137,6 +137,47 @@ class OrderApplicationServiceTest {
         verify(fixtures.reservationAccess, never()).consumeActive(anyString());
     }
 
+    @Test
+    void receivesStartedConfirmedOrder() {
+        Fixtures fixtures = fixtures();
+        OrderRow confirmedOrder = receivedOrderCandidate("CONFIRMED", null);
+        when(fixtures.orderMapper.lockById(ORDER_ID)).thenReturn(Optional.of(confirmedOrder));
+        when(fixtures.orderMapper.receiveConfirmed(ORDER_ID)).thenReturn(1);
+        when(fixtures.orderMapper.insertHistory(anyString(), anyString(), any(), anyString(), anyString())).thenReturn(1);
+        when(fixtures.orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(receivedOrderCandidate("RECEIVED", NOW)));
+
+        OrderResponse response = fixtures.service.receive(KEY, ORDER_ID);
+
+        assertThat(response.effectiveStatus()).isEqualTo("RECEIVED");
+        assertThat(response.receivedAt()).isEqualTo(NOW);
+        verify(fixtures.eventPublisher).record(anyString(), anyString(), anyString(), any());
+    }
+
+    @Test
+    void receivingAlreadyReceivedOrderHasNoSideEffects() {
+        Fixtures fixtures = fixtures();
+        OrderRow receivedOrder = receivedOrderCandidate("RECEIVED", NOW);
+        when(fixtures.orderMapper.lockById(ORDER_ID)).thenReturn(Optional.of(receivedOrder));
+
+        OrderResponse response = fixtures.service.receive(KEY, ORDER_ID);
+
+        assertThat(response.effectiveStatus()).isEqualTo("RECEIVED");
+        verify(fixtures.orderMapper, never()).receiveConfirmed(ORDER_ID);
+        verify(fixtures.orderMapper, never()).insertHistory(anyString(), anyString(), any(), anyString(), anyString());
+        verify(fixtures.eventPublisher, never()).record(anyString(), anyString(), anyString(), any());
+    }
+
+    private OrderRow receivedOrderCandidate(String status, Instant receivedAt) {
+        return new OrderRow(
+                ORDER_ID, USER_ID, PRODUCT_ID, EQUIPMENT_ID, RESERVATION_ID,
+                status, status, NOW, END, EXPIRES,
+                "Sony A7M4", "ILCE-7M4", "RF-A7M4-0001", "CNY", 1,
+                "CEIL_24H_FIXED_DEPOSIT", 1, new BigDecimal("200.00"),
+                new BigDecimal("200.00"), new BigDecimal("3000.00"), new BigDecimal("3200.00"),
+                "HALF_UP", NOW, NOW, receivedAt, null, null, NOW
+        );
+    }
+
     private Fixtures fixtures() {
         return fixtures("USER");
     }
@@ -257,6 +298,7 @@ class OrderApplicationServiceTest {
                 "CONFIRMED".equals(status) ? NOW : null,
                 null,
                 null,
+                null,
                 NOW
         );
     }
@@ -269,7 +311,7 @@ class OrderApplicationServiceTest {
                 row.productName(), row.productModel(), "RF-A7M4-0001", row.currency(),
                 row.pricingVersion(), row.pricingRule(), row.billingDays(), row.dailyRate(),
                 row.rentalAmount(), row.depositAmount(), row.totalAmount(), row.roundingMode(),
-                row.createdAt(), row.confirmedAt(), row.cancelledAt(), row.expiredAt(), row.databaseNow()
+                row.createdAt(), row.confirmedAt(), row.receivedAt(), row.cancelledAt(), row.expiredAt(), row.databaseNow()
         );
     }
 

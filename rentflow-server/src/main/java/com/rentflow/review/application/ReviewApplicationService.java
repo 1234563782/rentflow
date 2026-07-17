@@ -9,8 +9,8 @@ import com.rentflow.catalog.api.CatalogQuery;
 import com.rentflow.identity.api.CurrentUser;
 import com.rentflow.identity.api.CurrentUserProvider;
 import com.rentflow.messaging.api.DomainEventPublisher;
-import com.rentflow.ordering.api.ConfirmedOrderForReview;
-import com.rentflow.ordering.api.ConfirmedOrderReviewAccess;
+import com.rentflow.ordering.api.ReceivedOrderForReview;
+import com.rentflow.ordering.api.ReceivedOrderReviewAccess;
 import com.rentflow.review.api.CreateReviewRequest;
 import com.rentflow.review.api.ReviewPage;
 import com.rentflow.review.api.ReviewResponse;
@@ -43,7 +43,7 @@ public class ReviewApplicationService {
     private static final String CREATE_ENDPOINT = "POST:/api/v1/products/{productId}/reviews";
     private final CurrentUserProvider currentUserProvider;
     private final CatalogQuery catalogQuery;
-    private final ConfirmedOrderReviewAccess confirmedOrderReviewAccess;
+    private final ReceivedOrderReviewAccess receivedOrderReviewAccess;
     private final ReviewMapper reviewMapper;
     private final AuditLogWriter auditLogWriter;
     private final DomainEventPublisher eventPublisher;
@@ -52,12 +52,12 @@ public class ReviewApplicationService {
     private final IdempotencyProperties idempotencyProperties;
 
     public ReviewApplicationService(CurrentUserProvider currentUserProvider, CatalogQuery catalogQuery,
-                                    ConfirmedOrderReviewAccess confirmedOrderReviewAccess, ReviewMapper reviewMapper,
+                                    ReceivedOrderReviewAccess receivedOrderReviewAccess, ReviewMapper reviewMapper,
                                     AuditLogWriter auditLogWriter, DomainEventPublisher eventPublisher, ObjectMapper objectMapper,
                                     MySqlIdempotencyMutex idempotencyMutex, IdempotencyProperties idempotencyProperties) {
         this.currentUserProvider = currentUserProvider;
         this.catalogQuery = catalogQuery;
-        this.confirmedOrderReviewAccess = confirmedOrderReviewAccess;
+        this.receivedOrderReviewAccess = receivedOrderReviewAccess;
         this.reviewMapper = reviewMapper;
         this.auditLogWriter = auditLogWriter;
         this.eventPublisher = eventPublisher;
@@ -93,8 +93,8 @@ public class ReviewApplicationService {
         if (inserted == 0) return replay(idempotency);
         try {
             List<String> reviewedOrderIds = reviewMapper.listReviewedOrderIds(user.userId(), validProductId);
-            ConfirmedOrderForReview order = confirmedOrderReviewAccess.lockEarliestUnreviewedConfirmedOrder(user.userId(), validProductId, reviewedOrderIds)
-                    .orElseThrow(() -> business("REVIEW_NOT_ELIGIBLE", "A confirmed unreviewed order for this product is required", HttpStatus.CONFLICT));
+            ReceivedOrderForReview order = receivedOrderReviewAccess.lockEarliestUnreviewedReceivedOrder(user.userId(), validProductId, reviewedOrderIds)
+                    .orElseThrow(() -> business("REVIEW_NOT_ELIGIBLE", "A received unreviewed order for this product is required", HttpStatus.CONFLICT));
             String reviewId = Ulid.next();
             if (reviewMapper.insertReview(reviewId, validProductId, order.orderId(), user.userId(), intent.rating(), intent.content()) != 1) throw new IllegalStateException("Review insert did not affect exactly one row");
             ReviewResponse created = response(reviewMapper.findById(reviewId).orElseThrow());

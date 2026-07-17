@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.rentflow.notification.infrastructure.UserNotificationMapper">
+    <insert id="insert">
+        INSERT IGNORE INTO user_notifications (id, user_id, type, unique_key, title, content)
+        VALUES (#{id}, #{userId}, #{type}, #{uniqueKey}, #{title}, #{content})
+    </insert>
+
+    <select id="listForUser" resultType="com.rentflow.notification.infrastructure.UserNotificationRow">
+        SELECT id, type, title, content, read_at, created_at
+        FROM user_notifications
+        WHERE user_id = #{userId}
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="countForUser" resultType="long">
+        SELECT COUNT(*) FROM user_notifications WHERE user_id = #{userId}
+    </select>
+
+    <select id="countUnreadForUser" resultType="long">
+        SELECT COUNT(*) FROM user_notifications WHERE user_id = #{userId} AND read_at IS NULL
+    </select>
+
+    <update id="markRead">
+        UPDATE user_notifications
+        SET read_at = CURRENT_TIMESTAMP(6)
+        WHERE id = #{id} AND user_id = #{userId} AND read_at IS NULL
+    </update>
+</mapper>

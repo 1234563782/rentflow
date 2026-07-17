@@ -50,6 +50,16 @@ public class OrderController {
         );
     }
 
+    @PostMapping("/{orderId}/receive")
+    public OrderResponse receive(
+            @PathVariable String orderId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey
+    ) {
+        return deadlockRetryExecutor.execute(() ->
+                orderApplicationService.receive(idempotencyKey, orderId)
+        );
+    }
+
     @PostMapping("/{orderId}/cancel")
     public OrderResponse cancel(
             @PathVariable String orderId,

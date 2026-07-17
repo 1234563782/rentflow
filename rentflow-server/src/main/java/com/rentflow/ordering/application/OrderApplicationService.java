@@ -50,9 +50,10 @@ import java.util.function.Supplier;
 public class OrderApplicationService {
     private static final String CREATE_ENDPOINT = "POST:/api/v1/orders";
     private static final String CONFIRM_ENDPOINT = "POST:/api/v1/orders/{orderId}/confirm";
+    private static final String RECEIVE_ENDPOINT = "POST:/api/v1/orders/{orderId}/receive";
     private static final String CANCEL_ENDPOINT = "POST:/api/v1/orders/{orderId}/cancel";
     private static final Set<String> STATUSES = Set.of(
-            "PENDING_CONFIRMATION", "CONFIRMED", "CANCELLED", "EXPIRED"
+            "PENDING_CONFIRMATION", "CONFIRMED", "RECEIVED", "CANCELLED", "EXPIRED"
     );
 
     private final CurrentUserProvider currentUserProvider;
@@ -120,6 +121,21 @@ public class OrderApplicationService {
     }
 
     @Transactional(noRollbackFor = BusinessException.class)
+    public OrderResponse receive(String rawIdempotencyKey, String orderId) {
+        CurrentUser user = currentUserProvider.requireCurrentUser();
+        String validOrderId = Ulid.requireValid(orderId);
+        return executeIdempotently(
+                user,
+                rawIdempotencyKey,
+                RECEIVE_ENDPOINT,
+                new OrderOperationRequest(validOrderId, "RECEIVE"),
+                "ORDER_RECEIVED",
+                HttpStatus.OK.value(),
+                () -> receiveConfirmed(user, validOrderId)
+        );
+    }
+
+    @Transactional(noRollbackFor = BusinessException.class)
     public OrderResponse cancel(String rawIdempotencyKey, String orderId) {
         CurrentUser user = currentUserProvider.requireCurrentUser();
         String validOrderId = Ulid.requireValid(orderId);
@@ -176,6 +192,7 @@ public class OrderApplicationService {
                 order.priceSnapshot(),
                 order.createdAt(),
                 order.confirmedAt(),
+                order.receivedAt(),
                 order.cancelledAt(),
                 order.expiredAt(),
                 history
@@ -268,6 +285,30 @@ public class OrderApplicationService {
                         "equipmentUnitId", equipment.equipmentUnitId(),
                         "equipmentDisplayCode", equipment.displayCode()
                 )
+        ));
+        return reload(orderId);
+    }
+
+    private OrderResponse receiveConfirmed(CurrentUser user, String orderId) {
+        OrderRow order = lockOwned(orderId, user);
+        if ("RECEIVED".equals(order.status())) {
+            return response(order);
+        }
+        if (!"CONFIRMED".equals(order.status())) {
+            throw business("ORDER_STATE_CONFLICT", "Order cannot be received", HttpStatus.CONFLICT);
+        }
+        if (orderMapper.receiveConfirmed(orderId) != 1) {
+            throw business("ORDER_STATE_CONFLICT", "Order cannot be received before its rental start", HttpStatus.CONFLICT);
+        }
+        insertHistory(orderId, "CONFIRMED", "RECEIVED", "USER_RECEIVED");
+        eventPublisher.record("ORDER", orderId, "order.received", Map.of(
+                "orderId", orderId,
+                "productId", order.productId(),
+                "sourceReservationId", order.sourceReservationId()
+        ));
+        auditLogWriter.write(new AuditCommand(
+                user.userId(), "ORDER_RECEIVED", "ORDER", orderId, "SUCCESS",
+                Map.of("sourceReservationId", order.sourceReservationId())
         ));
         return reload(orderId);
     }
@@ -445,6 +486,7 @@ public class OrderApplicationService {
                 ),
                 row.createdAt(),
                 row.confirmedAt(),
+                row.receivedAt(),
                 row.cancelledAt(),
                 row.expiredAt()
         );
