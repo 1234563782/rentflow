@@ -6,7 +6,6 @@ import com.rentflow.audit.api.AuditLogWriter;
 import com.rentflow.catalog.api.CatalogQuery;
 import com.rentflow.identity.api.CurrentUser;
 import com.rentflow.identity.api.CurrentUserProvider;
-import com.rentflow.messaging.api.DomainEventPublisher;
 import com.rentflow.ordering.api.ReceivedOrderForReview;
 import com.rentflow.ordering.api.ReceivedOrderReviewAccess;
 import com.rentflow.review.api.CreateReviewRequest;
@@ -65,7 +64,7 @@ class ReviewApplicationServiceTest {
         when(mapper.insertIdempotency(anyString(), anyString(), anyString(), anyString(), anyString())).thenAnswer(invocation -> { digest.set(invocation.getArgument(4)); return 1; });
         when(mapper.lockIdempotency(anyString(), anyString(), anyString())).thenAnswer(invocation -> Optional.of(new ReviewIdempotencyRow("01J00000000000000000050001", digest.get(), "PROCESSING", null, null)));
         when(mapper.completeIdempotency(anyString(), anyInt(), anyString(), anyString())).thenReturn(1);
-        return new Fixtures(new ReviewApplicationService(user, catalog, orders, mapper, mock(AuditLogWriter.class), mock(DomainEventPublisher.class),
+        return new Fixtures(new ReviewApplicationService(user, catalog, orders, mapper, mock(AuditLogWriter.class),
                 JsonMapper.builder().addModule(new JavaTimeModule()).build(), mock(MySqlIdempotencyMutex.class), new IdempotencyProperties(5, 5)), orders, mapper);
     }
 

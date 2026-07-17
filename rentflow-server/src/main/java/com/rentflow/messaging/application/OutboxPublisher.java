@@ -91,7 +91,13 @@ public class OutboxPublisher {
             throw new AmqpException("Broker rejected event: " + confirm.getReason());
         }
         if (correlation.getReturned() != null) {
-            throw new AmqpException("Event was not routed to a queue");
+            var returned = correlation.getReturned();
+            throw new AmqpException(
+                    "Event was not routed to a queue: exchange=" + returned.getExchange()
+                            + ", routingKey=" + returned.getRoutingKey()
+                            + ", replyCode=" + returned.getReplyCode()
+                            + ", replyText=" + returned.getReplyText()
+            );
         }
     }
 
