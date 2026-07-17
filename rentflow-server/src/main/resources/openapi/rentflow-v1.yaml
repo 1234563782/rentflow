@@ -12,6 +12,7 @@ tags:
   - name: Pricing
   - name: Reservations
   - name: Orders
+  - name: Reviews
 security:
   - bearerAuth: []
 paths:
@@ -217,6 +218,53 @@ paths:
           $ref: '#/components/responses/AccessDenied'
         '404':
           $ref: '#/components/responses/ReservationNotFound'
+  /api/v1/products/{productId}/reviews:
+    parameters:
+      - $ref: '#/components/parameters/ProductId'
+    get:
+      tags: [Reviews]
+      operationId: listProductReviews
+      security: []
+      responses:
+        '200':
+          description: Product reviews sorted by newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Review'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+    post:
+      tags: [Reviews]
+      operationId: createProductReview
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReviewRequest'
+      responses:
+        '201':
+          description: Review created for a confirmed order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Review'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '409':
+          description: Review eligibility or idempotency conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /api/v1/orders:
     post:
       tags: [Orders]
@@ -789,6 +837,40 @@ components:
           $ref: '#/components/schemas/ReservationStatus'
         priceSnapshot:
           $ref: '#/components/schemas/PriceSnapshot'
+    CreateReviewRequest:
+      type: object
+      additionalProperties: false
+      required: [orderId, rating, content]
+      properties:
+        orderId:
+          $ref: '#/components/schemas/Ulid'
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        content:
+          type: string
+          minLength: 1
+          maxLength: 1000
+    Review:
+      type: object
+      additionalProperties: false
+      required: [reviewId, productId, orderId, rating, content, createdAt]
+      properties:
+        reviewId:
+          $ref: '#/components/schemas/Ulid'
+        productId:
+          $ref: '#/components/schemas/Ulid'
+        orderId:
+          $ref: '#/components/schemas/Ulid'
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        content:
+          type: string
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
     CreateOrderRequest:
       type: object
       additionalProperties: false

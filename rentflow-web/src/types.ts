@@ -40,12 +40,34 @@ export interface ProductDetail extends ProductSummary {
   description: string
 }
 
+export interface ProductReview {
+  reviewId: string
+  rating: number
+  content: string
+  reviewerName: string
+  createdAt: string
+}
+
+export interface ReviewStatistics {
+  averageRating: number
+  totalReviews: number
+}
+
+export interface CreateReviewRequest {
+  rating: number
+  content: string
+}
+
 export interface Page<T> {
   items: T[]
   page: number
   size: number
   totalElements: number
   totalPages: number
+}
+
+export interface ReviewPage extends Page<ProductReview> {
+  statistics: ReviewStatistics
 }
 
 export interface Availability {

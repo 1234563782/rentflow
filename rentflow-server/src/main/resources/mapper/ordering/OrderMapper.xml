@@ -119,6 +119,23 @@
         FOR UPDATE
     </select>
 
+    <select id="lockEarliestUnreviewedConfirmedOrder" resultType="com.rentflow.ordering.api.ConfirmedOrderForReview">
+        SELECT id AS orderId, product_id AS productId, user_id AS userId
+        FROM rental_orders
+        WHERE user_id = #{userId}
+          AND product_id = #{productId}
+          AND status = 'CONFIRMED'
+        <if test="reviewedOrderIds != null and !reviewedOrderIds.isEmpty()">
+            AND id NOT IN
+            <foreach collection="reviewedOrderIds" item="orderId" open="(" separator="," close=")">
+                #{orderId}
+            </foreach>
+        </if>
+        ORDER BY confirmed_at ASC, id ASC
+        LIMIT 1
+        FOR UPDATE
+    </select>
+
     <update id="confirmPending">
         UPDATE rental_orders
         SET status = 'CONFIRMED',

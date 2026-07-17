@@ -139,6 +139,31 @@ h1, h2, p { margin-top: 0; }
 .quote-result .full-button { margin-top: 8px; }
 .quote-note { margin: 10px 0 0; color: var(--muted); font-size: 11px; text-align: center; }
 
+.review-section { margin-top: 48px; padding-top: 30px; border-top: 1px solid var(--line); }
+.review-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin-bottom: 20px; }
+.review-heading h2 { margin: 5px 0 0; font-size: 24px; }
+.review-summary { display: flex; align-items: center; justify-content: flex-end; gap: 7px; white-space: nowrap; }
+.review-summary .el-rate, .review-item .el-rate { --el-rate-icon-size: 15px; }
+.review-summary strong { color: var(--forest); font-size: 19px; }
+.review-summary span { color: var(--muted); font-size: 12px; }
+.review-composer { display: grid; gap: 13px; margin-bottom: 16px; padding: 18px; border: 1px solid #cfdad5; border-radius: 8px; background: #f7f9f7; }
+.review-composer-heading { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.review-composer-heading span, .review-composer-actions span { color: var(--muted); font-size: 12px; }
+.review-composer-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.review-login-prompt { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 16px; padding: 17px 18px; border-left: 3px solid var(--coral); background: #f9f5f1; }
+.review-login-prompt div { display: grid; gap: 4px; }
+.review-login-prompt span { color: var(--muted); font-size: 12px; }
+.review-skeleton { padding: 20px 0; }
+.review-error { display: grid; justify-items: start; gap: 5px; padding: 22px 0; color: var(--muted); }
+.review-error strong { color: var(--ink); }
+.review-error .el-button { margin-left: -12px; }
+.review-list { border-top: 1px solid var(--line); }
+.review-item { padding: 19px 0; border-bottom: 1px solid var(--line); }
+.review-item header { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 7px; }
+.review-item header span { color: var(--muted); font-size: 12px; }
+.review-item p { margin: 10px 0 0; color: #3d4945; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
+.review-pagination { justify-content: center; margin-top: 22px; }
+
 .checkout-sheet, .order-detail-sheet { overflow: hidden; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
 .reservation-clock { display: flex; align-items: center; gap: 14px; padding: 18px 22px; background: var(--forest); color: white; }
 .reservation-clock.expired { background: #6c4c45; }
@@ -281,6 +306,9 @@ h1, h2, p { margin-top: 0; }
   .product-card h2 { min-height: 0; }
   .detail-grid { display: block; }
   .detail-product { margin-bottom: 28px; }
+  .review-heading { align-items: flex-start; flex-direction: column; }
+  .review-summary { justify-content: flex-start; }
+  .review-composer-actions, .review-login-prompt { align-items: flex-start; flex-direction: column; }
   .booking-tool { position: static; padding: 18px; }
   .spec-list { grid-template-columns: 1fr; }
   .spec-list div { padding: 12px 0; border-right: 0; border-bottom: 1px solid var(--line); }

@@ -59,6 +59,7 @@ public class SecurityConfiguration {
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers(HttpMethod.POST, "/api/v1/products/*/reviews").authenticated()
                         .requestMatchers(
                                 "/api/v1/auth/login",
                                 "/api/v1/categories",

@@ -1,7 +1,7 @@
 import { http } from './http'
 import type {
-  Availability, Category, LoginResponse, Order, OrderDetail, Page, ProductDetail,
-  ProductSummary, Quote, Reservation,
+  Availability, Category, CreateReviewRequest, LoginResponse, Order, OrderDetail, Page, ProductDetail,
+  ProductReview, ProductSummary, Quote, Reservation, ReviewPage,
 } from '@/types'
 
 export const authApi = {
@@ -22,6 +22,17 @@ export const catalogApi = {
   },
   async availability(productId: string, startAt: string, endAt: string) {
     return (await http.post<Availability>('/api/v1/availability/search', { productId, startAt, endAt })).data
+  },
+}
+
+export const reviewApi = {
+  async list(productId: string, params: { page: number; size: number }) {
+    return (await http.get<ReviewPage>(`/api/v1/products/${productId}/reviews`, { params })).data
+  },
+  async create(productId: string, request: CreateReviewRequest, idempotencyKey: string) {
+    return (await http.post<ProductReview>(`/api/v1/products/${productId}/reviews`, request, {
+      headers: { 'Idempotency-Key': idempotencyKey },
+    })).data
   },
 }
 

@@ -3,6 +3,8 @@ package com.rentflow.ordering.infrastructure;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import com.rentflow.ordering.api.ConfirmedOrderForReview;
+
 import java.util.List;
 import java.util.Optional;
 
@@ -50,6 +52,12 @@ public interface OrderMapper {
     Optional<OrderRow> findById(@Param("orderId") String orderId);
 
     Optional<OrderRow> lockById(@Param("orderId") String orderId);
+
+    Optional<ConfirmedOrderForReview> lockEarliestUnreviewedConfirmedOrder(
+            @Param("userId") String userId,
+            @Param("productId") String productId,
+            @Param("reviewedOrderIds") List<String> reviewedOrderIds
+    );
 
     int confirmPending(@Param("orderId") String orderId);
 

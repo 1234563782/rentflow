@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.rentflow.review.infrastructure.ReviewMapper">
+    <sql id="reviewColumns">r.id, r.product_id, r.order_id, r.user_id, r.rating, r.content, u.nickname AS reviewer_name, r.created_at</sql>
+    <select id="listByProductId" resultType="com.rentflow.review.infrastructure.ReviewRow">
+        SELECT <include refid="reviewColumns"/> FROM product_reviews r JOIN users u ON u.id = r.user_id
+        WHERE r.product_id = #{productId} ORDER BY r.created_at DESC, r.id DESC LIMIT #{size} OFFSET #{offset}
+    </select>
+    <select id="countByProductId" resultType="long">SELECT COUNT(*) FROM product_reviews WHERE product_id = #{productId}</select>
+    <select id="averageRatingByProductId" resultType="double">SELECT AVG(rating) FROM product_reviews WHERE product_id = #{productId}</select>
+    <select id="listReviewedOrderIds" resultType="string">SELECT order_id FROM product_reviews WHERE user_id = #{userId} AND product_id = #{productId}</select>
+    <insert id="insertIdempotency">INSERT IGNORE INTO review_idempotency (id, user_id, endpoint, idempotency_key, request_digest, status) VALUES (#{id}, #{userId}, #{endpoint}, #{idempotencyKey}, #{requestDigest}, 'PROCESSING')</insert>
+    <select id="lockIdempotency" resultType="com.rentflow.review.infrastructure.ReviewIdempotencyRow">SELECT id, request_digest, status, response_http_status, response_body FROM review_idempotency WHERE user_id = #{userId} AND endpoint = #{endpoint} AND idempotency_key = #{idempotencyKey} FOR UPDATE</select>
+    <update id="completeIdempotency">UPDATE review_idempotency SET status = 'COMPLETED', response_http_status = #{httpStatus}, response_code = 'REVIEW_CREATED', response_body = #{responseBody}, resource_id = #{resourceId}, completed_at = CURRENT_TIMESTAMP(6) WHERE id = #{id} AND status = 'PROCESSING'</update>
+    <update id="failIdempotency">UPDATE review_idempotency SET status = 'FAILED', response_http_status = #{httpStatus}, response_code = #{responseCode}, response_body = #{responseBody}, completed_at = CURRENT_TIMESTAMP(6) WHERE id = #{id} AND status = 'PROCESSING'</update>
+    <insert id="insertReview">INSERT INTO product_reviews (id, product_id, order_id, user_id, rating, content) VALUES (#{id}, #{productId}, #{orderId}, #{userId}, #{rating}, #{content})</insert>
+    <select id="findById" resultType="com.rentflow.review.infrastructure.ReviewRow">SELECT <include refid="reviewColumns"/> FROM product_reviews r JOIN users u ON u.id = r.user_id WHERE r.id = #{reviewId}</select>
+</mapper>
