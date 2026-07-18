@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Optional;
 
 @Service
@@ -23,7 +23,7 @@ public class EquipmentAssignmentApplicationService implements EquipmentAssignmen
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
-    public AssignedEquipment assign(String productId, Instant startAt, Instant endAt) {
+    public AssignedEquipment assign(String productId, LocalDate startDate, LocalDate endDate) {
         for (EquipmentCandidate candidate : inventoryLockMapper.listAllocationCandidates(productId)) {
             Optional<EquipmentCandidate> locked = inventoryLockMapper.lockAllocationCandidate(
                     productId, candidate.equipmentUnitId()
@@ -32,12 +32,12 @@ public class EquipmentAssignmentApplicationService implements EquipmentAssignmen
                 continue;
             }
             if (inventoryLockMapper.lockActiveReservationConflict(
-                    candidate.equipmentUnitId(), startAt, endAt
+                    candidate.equipmentUnitId(), startDate, endDate
             ).isPresent()) {
                 continue;
             }
             if (inventoryLockMapper.lockConfirmedOrderConflict(
-                    candidate.equipmentUnitId(), startAt, endAt
+                    candidate.equipmentUnitId(), startDate, endDate
             ).isEmpty()) {
                 EquipmentCandidate equipment = locked.get();
                 return new AssignedEquipment(equipment.equipmentUnitId(), equipment.displayCode());

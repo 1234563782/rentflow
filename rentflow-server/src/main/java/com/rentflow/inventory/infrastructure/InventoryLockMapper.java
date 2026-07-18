@@ -3,7 +3,7 @@ package com.rentflow.inventory.infrastructure;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
-import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -18,13 +18,13 @@ public interface InventoryLockMapper {
 
     Optional<String> lockActiveReservationConflict(
             @Param("equipmentUnitId") String equipmentUnitId,
-            @Param("startAt") Instant startAt,
-            @Param("endAt") Instant endAt
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
     );
 
     Optional<String> lockConfirmedOrderConflict(
             @Param("equipmentUnitId") String equipmentUnitId,
-            @Param("startAt") Instant startAt,
-            @Param("endAt") Instant endAt
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
     );
 }

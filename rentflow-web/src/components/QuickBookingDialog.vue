@@ -12,8 +12,9 @@ import {
   defaultRentalPeriod,
   formatDateTime,
   formatMoney,
+  isDateBeforeRentalStartInShanghai,
   newIdempotencyKey,
-  toIsoPeriod,
+  toDateRange,
 } from '@/utils'
 
 const props = defineProps<{
@@ -50,7 +51,7 @@ function close() {
 }
 
 async function checkAndQuote() {
-  const selected = toIsoPeriod(period.value)
+  const selected = toDateRange(period.value)
   if (!selected || !props.product) return ElMessage.warning('请选择完整租期')
   flowLoading.value = true
   availability.value = undefined
@@ -58,8 +59,8 @@ async function checkAndQuote() {
   orderKey = null
   try {
     const [availabilityResult, quoteResult] = await Promise.all([
-      catalogApi.availability(props.product.productId, selected.startAt, selected.endAt),
-      quoteApi.create(props.product.productId, selected.startAt, selected.endAt),
+      catalogApi.availability(props.product.productId, selected.startDate, selected.endDate),
+      quoteApi.create(props.product.productId, selected.startDate, selected.endDate),
     ])
     availability.value = availabilityResult
     quote.value = quoteResult
@@ -93,7 +94,7 @@ watch(
     if (!open) return
     const initial = props.initialPeriod
     period.value = initial
-      ? [new Date(initial.startAt), new Date(initial.endAt)]
+      ? [new Date(`${initial.startDate}T00:00:00`), new Date(`${initial.endDate}T00:00:00`)]
       : defaultRentalPeriod()
     availability.value = undefined
     quote.value = undefined
@@ -126,17 +127,18 @@ onBeforeUnmount(() => window.clearInterval(timer))
 
     <div v-if="product" class="quick-booking-tool">
       <div class="tool-heading"><span>租期与报价</span><el-icon><Clock /></el-icon></div>
-      <label class="field-label">租赁时间</label>
+      <label class="field-label">租赁日期</label>
       <el-date-picker
         v-model="period"
-        type="datetimerange"
+        type="daterange"
         range-separator="至"
-        start-placeholder="开始时间"
-        end-placeholder="结束时间"
-        format="YYYY-MM-DD HH:mm"
+        start-placeholder="开始日期"
+        end-placeholder="结束日期"
+        format="YYYY-MM-DD"
+        :disabled-date="isDateBeforeRentalStartInShanghai"
         :clearable="false"
       />
-      <p class="field-help">最短可租 1 小时，最小按 1 天计费，最长 30 天。</p>
+      <p class="field-help">按自然日整天起租，结束日期包含在租期内。</p>
       <el-button class="full-button" type="primary" :loading="flowLoading" @click="checkAndQuote">
         查询库存并获取报价
       </el-button>

@@ -10,7 +10,8 @@ import com.rentflow.identity.api.CurrentUserProvider;
 import com.rentflow.inventory.api.CreateReservationRequest;
 import com.rentflow.inventory.api.InventoryHoldCreator;
 import com.rentflow.inventory.api.ReservationResponse;
-import com.rentflow.inventory.domain.HourlyCapacitySlots;
+import com.rentflow.inventory.domain.DailyCapacitySlots;
+import com.rentflow.shared.time.RentalCalendar;
 import com.rentflow.inventory.infrastructure.CapacityClaimRow;
 import com.rentflow.inventory.infrastructure.CapacitySlotMapper;
 import com.rentflow.inventory.infrastructure.ReservationIdempotencyRow;
@@ -36,6 +37,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +51,7 @@ public class ReservationApplicationService implements InventoryHoldCreator {
     private final CapacitySlotMapper capacitySlotMapper;
     private final AuditLogWriter auditLogWriter;
     private final ReservationProperties properties;
+    private final RentalCalendar rentalCalendar;
     private final ObjectMapper objectMapper;
     private final MySqlIdempotencyMutex idempotencyMutex;
     private final IdempotencyProperties idempotencyProperties;
@@ -60,6 +63,7 @@ public class ReservationApplicationService implements InventoryHoldCreator {
             CapacitySlotMapper capacitySlotMapper,
             AuditLogWriter auditLogWriter,
             ReservationProperties properties,
+            RentalCalendar rentalCalendar,
             ObjectMapper objectMapper,
             MySqlIdempotencyMutex idempotencyMutex,
             IdempotencyProperties idempotencyProperties
@@ -70,6 +74,7 @@ public class ReservationApplicationService implements InventoryHoldCreator {
         this.capacitySlotMapper = capacitySlotMapper;
         this.auditLogWriter = auditLogWriter;
         this.properties = properties;
+        this.rentalCalendar = rentalCalendar;
         this.objectMapper = objectMapper;
         this.idempotencyMutex = idempotencyMutex;
         this.idempotencyProperties = idempotencyProperties;
@@ -215,7 +220,7 @@ public class ReservationApplicationService implements InventoryHoldCreator {
         if (quote.expired()) {
             throw business("QUOTE_EXPIRED", "Quote has expired", HttpStatus.CONFLICT);
         }
-        if (quote.rentalStarted()) {
+        if (quote.startDate().compareTo(rentalCalendar.currentDate(quote.databaseNow())) <= 0) {
             throw business(
                     "RENTAL_ALREADY_STARTED",
                     "Rental period has already started",
@@ -243,9 +248,9 @@ public class ReservationApplicationService implements InventoryHoldCreator {
             );
         }
 
-        Instant expiresAt = reservationMapper.computeExpiration(quote.startAt(), properties.ttlSeconds());
+        Instant expiresAt = reservationMapper.computeExpiration(quote.startDate(), properties.ttlSeconds());
         String reservationId = Ulid.next();
-        List<Instant> capacitySlots = lockAvailableCapacity(quote);
+        List<LocalDate> capacityDates = lockAvailableCapacity(quote);
         if (reservationMapper.insertReservation(new ReservationInsert(
                 reservationId,
                 user.userId(),
@@ -254,8 +259,8 @@ public class ReservationApplicationService implements InventoryHoldCreator {
         )) != 1) {
             throw new IllegalStateException("Reservation insert did not affect exactly one row");
         }
-        if (capacitySlotMapper.insertClaims(reservationId, quote.productId(), capacitySlots)
-                != capacitySlots.size()) {
+        if (capacitySlotMapper.insertClaims(reservationId, quote.productId(), capacityDates)
+                != capacityDates.size()) {
             throw new IllegalStateException("Reservation capacity claim count did not match requested slots");
         }
         ReservationRow row = reservationMapper.findById(reservationId)
@@ -269,37 +274,37 @@ public class ReservationApplicationService implements InventoryHoldCreator {
                 Map.of(
                         "sourceQuoteId", quote.quoteId(),
                         "productId", quote.productId(),
-                        "capacitySlotCount", capacitySlots.size()
+                        "capacityDateCount", capacityDates.size()
                 )
         ));
         return response(row);
     }
 
-    private List<Instant> lockAvailableCapacity(LockedQuote quote) {
-        List<Instant> slots = HourlyCapacitySlots.covering(quote.startAt(), quote.endAt());
+    private List<LocalDate> lockAvailableCapacity(LockedQuote quote) {
+        List<LocalDate> capacityDates = DailyCapacitySlots.covering(quote.startDate(), quote.endDate());
         int initialCapacity = capacitySlotMapper.countEnabledUnits(quote.productId());
         if (initialCapacity < 1) {
             throw inventoryNotAvailable();
         }
-        capacitySlotMapper.insertMissingSlots(quote.productId(), initialCapacity, slots);
-        if (capacitySlotMapper.lockSlots(quote.productId(), slots).size() != slots.size()) {
-            throw new IllegalStateException("Not all requested capacity slots could be locked");
+        capacitySlotMapper.insertMissingSlots(quote.productId(), initialCapacity, capacityDates);
+        if (capacitySlotMapper.lockSlots(quote.productId(), capacityDates).size() != capacityDates.size()) {
+            throw new IllegalStateException("Not all requested capacity dates could be locked");
         }
         int currentCapacity = capacitySlotMapper.countEnabledUnits(quote.productId());
-        capacitySlotMapper.updateSlotCapacities(quote.productId(), currentCapacity, slots);
+        capacitySlotMapper.updateSlotCapacities(quote.productId(), currentCapacity, capacityDates);
         if (currentCapacity < 1 || maxClaims(capacitySlotMapper.lockEffectiveClaims(
-                quote.productId(), slots
+                quote.productId(), capacityDates
         )) >= currentCapacity) {
             throw inventoryNotAvailable();
         }
-        return slots;
+        return capacityDates;
     }
 
     private int maxClaims(List<CapacityClaimRow> claims) {
-        Map<Instant, Integer> counts = new HashMap<>();
+        Map<LocalDate, Integer> counts = new HashMap<>();
         int max = 0;
         for (CapacityClaimRow claim : claims) {
-            int count = counts.merge(claim.slotStart(), 1, Integer::sum);
+            int count = counts.merge(claim.capacityDate(), 1, Integer::sum);
             max = Math.max(max, count);
         }
         return max;
@@ -337,8 +342,8 @@ public class ReservationApplicationService implements InventoryHoldCreator {
                 row.sourceQuoteId(),
                 row.productId(),
                 row.equipmentDisplayCode(),
-                row.startAt(),
-                row.endAt(),
+                row.startDate(),
+                row.endDate(),
                 row.expiresAt(),
                 row.status(),
                 row.effectiveStatus(),

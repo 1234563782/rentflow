@@ -8,7 +8,7 @@ import PriceBreakdown from '@/components/PriceBreakdown.vue'
 import { catalogApi, orderApi, quoteApi, reviewApi } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import type { Availability, ProductDetail, ProductReview, Quote, ReviewStatistics } from '@/types'
-import { apiErrorMessage, defaultRentalPeriod, formatDateTime, formatMoney, newIdempotencyKey, toIsoPeriod } from '@/utils'
+import { apiErrorMessage, defaultRentalPeriod, formatDateTime, formatMoney, isDateBeforeRentalStartInShanghai, newIdempotencyKey, toDateRange } from '@/utils'
 
 const REVIEW_PAGE_SIZE = 10
 
@@ -106,7 +106,7 @@ async function submitReview() {
 }
 
 async function checkAndQuote() {
-  const selected = toIsoPeriod(period.value)
+  const selected = toDateRange(period.value)
   if (!selected || !product.value) return ElMessage.warning('请选择完整租期')
   if (!auth.isAuthenticated) {
     await router.push({ name: 'login', query: { redirect: route.fullPath } })
@@ -118,8 +118,8 @@ async function checkAndQuote() {
   orderKey = null
   try {
     const [availabilityResult, quoteResult] = await Promise.all([
-      catalogApi.availability(product.value.productId, selected.startAt, selected.endAt),
-      quoteApi.create(product.value.productId, selected.startAt, selected.endAt),
+      catalogApi.availability(product.value.productId, selected.startDate, selected.endDate),
+      quoteApi.create(product.value.productId, selected.startDate, selected.endDate),
     ])
     availability.value = availabilityResult
     quote.value = quoteResult
@@ -199,9 +199,9 @@ onBeforeUnmount(() => window.clearInterval(timer))
 
         <aside class="booking-tool">
           <div class="tool-heading"><span>租期与报价</span><el-icon><Clock /></el-icon></div>
-          <label class="field-label">租赁时间</label>
-          <el-date-picker v-model="period" type="datetimerange" range-separator="至" start-placeholder="开始时间" end-placeholder="结束时间" format="YYYY-MM-DD HH:mm" :clearable="false" />
-          <p class="field-help">最短可租 1 小时，最小按 1 天计费，最长 30 天。</p>
+          <label class="field-label">租赁日期</label>
+          <el-date-picker v-model="period" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" format="YYYY-MM-DD" :disabled-date="isDateBeforeRentalStartInShanghai" :clearable="false" />
+          <p class="field-help">按自然日整天起租，结束日期包含在租期内。</p>
           <el-button class="full-button" type="primary" :loading="flowLoading" @click="checkAndQuote">查询库存并获取报价</el-button>
 
           <div v-if="availability" class="availability-line" :class="availability.available ? 'is-available' : 'is-unavailable'">

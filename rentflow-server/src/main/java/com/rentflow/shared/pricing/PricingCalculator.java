@@ -8,8 +8,7 @@ import java.util.Objects;
 
 public final class PricingCalculator {
     public static final String CURRENCY = "CNY";
-    public static final String RULE = "CEIL_24H_FIXED_DEPOSIT";
-    private static final long SECONDS_PER_DAY = 86_400;
+    public static final String RULE = "INCLUSIVE_CALENDAR_DAYS_FIXED_DEPOSIT";
 
     private PricingCalculator() {
     }
@@ -23,12 +22,7 @@ public final class PricingCalculator {
         Objects.requireNonNull(period, "period");
         BigDecimal normalizedDailyRate = normalize(dailyRate, "dailyRate");
         BigDecimal normalizedDeposit = normalize(fixedDeposit, "fixedDeposit");
-
-        long seconds = period.duration().getSeconds();
-        boolean partialDay = seconds % SECONDS_PER_DAY != 0 || period.duration().getNano() != 0;
-        int billingDays = Math.toIntExact(seconds / SECONDS_PER_DAY + (partialDay ? 1 : 0));
-        billingDays = Math.max(1, billingDays);
-
+        int billingDays = period.billingDays();
         BigDecimal rentalAmount = normalizedDailyRate
                 .multiply(BigDecimal.valueOf(billingDays))
                 .setScale(2, RoundingMode.HALF_UP);

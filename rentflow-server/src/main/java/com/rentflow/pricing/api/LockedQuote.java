@@ -2,13 +2,14 @@ package com.rentflow.pricing.api;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 
 public record LockedQuote(
         String quoteId,
         String userId,
         String productId,
-        Instant startAt,
-        Instant endAt,
+        LocalDate startDate,
+        LocalDate endDate,
         int billingDays,
         String currency,
         long pricingVersion,
@@ -24,9 +25,5 @@ public record LockedQuote(
 ) {
     public boolean expired() {
         return !expiresAt.isAfter(databaseNow);
-    }
-
-    public boolean rentalStarted() {
-        return !startAt.isAfter(databaseNow);
     }
 }

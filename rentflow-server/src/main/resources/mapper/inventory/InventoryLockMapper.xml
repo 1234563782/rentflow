@@ -26,8 +26,8 @@
         WHERE r.equipment_unit_id = #{equipmentUnitId}
           AND r.status = 'ACTIVE'
           AND r.expires_at &gt; CURRENT_TIMESTAMP(6)
-          AND r.start_at &lt; #{endAt}
-          AND r.end_at &gt; #{startAt}
+          AND r.start_date &lt;= #{endDate}
+          AND r.end_date &gt;= #{startDate}
         ORDER BY r.id ASC
         LIMIT 1
         FOR UPDATE
@@ -38,8 +38,8 @@
         FROM rental_orders o
         WHERE o.equipment_unit_id = #{equipmentUnitId}
           AND o.status = 'CONFIRMED'
-          AND o.start_at &lt; #{endAt}
-          AND o.end_at &gt; #{startAt}
+          AND o.start_date &lt;= #{endDate}
+          AND o.end_date &gt;= #{startDate}
         ORDER BY o.id ASC
         LIMIT 1
         FOR UPDATE

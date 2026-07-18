@@ -10,7 +10,6 @@ import com.rentflow.catalog.api.UseCaseView;
 import com.rentflow.inventory.api.AvailabilityQuery;
 import com.rentflow.inventory.api.AvailabilityResult;
 import com.rentflow.shared.pagination.PageQuery;
-import com.rentflow.shared.time.UtcTimes;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,8 +20,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.OffsetDateTime;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -55,32 +54,23 @@ public class CatalogHttpController {
             @RequestParam(required = false) String useCaseId,
             @RequestParam(required = false) String categoryId,
             @RequestParam(required = false) BigDecimal maxDailyRate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime startAt,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime endAt,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        if ((startAt == null) != (endAt == null)) {
-            throw new IllegalArgumentException("startAt and endAt must be supplied together");
+        if ((startDate == null) != (endDate == null)) {
+            throw new IllegalArgumentException("startDate and endDate must be supplied together");
         }
         ProductPage result = catalogQuery.searchProducts(
-                keyword,
-                equipmentRole,
-                brand,
-                model,
-                useCaseId,
-                categoryId,
-                maxDailyRate,
-                new PageQuery(page, size)
+                keyword, equipmentRole, brand, model, useCaseId, categoryId, maxDailyRate, new PageQuery(page, size)
         );
-        if (startAt == null) {
+        if (startDate == null) {
             return result;
         }
         List<ProductSummary> items = result.items().stream()
                 .map(product -> product.withAvailableCount(availabilityQuery.search(
-                        product.productId(),
-                        UtcTimes.toInstant(startAt),
-                        UtcTimes.toInstant(endAt)
+                        product.productId(), startDate, endDate
                 ).availableCount()))
                 .toList();
         return new ProductPage(items, result.page(), result.size(), result.totalElements(), result.totalPages());
@@ -94,10 +84,6 @@ public class CatalogHttpController {
     @PostMapping("/availability/search")
     public AvailabilityResult searchAvailability(@Valid @RequestBody AvailabilityRequest request) {
         catalogQuery.requireProduct(request.productId());
-        return availabilityQuery.search(
-                request.productId(),
-                UtcTimes.toInstant(request.startAt()),
-                UtcTimes.toInstant(request.endAt())
-        );
+        return availabilityQuery.search(request.productId(), request.startDate(), request.endDate());
     }
 }

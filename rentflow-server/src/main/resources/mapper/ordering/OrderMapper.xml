@@ -19,8 +19,8 @@
         o.source_reservation_id,
         o.status,
         <include refid="effectiveOrderStatus"/> AS effective_status,
-        o.start_at,
-        o.end_at,
+        o.start_date,
+        o.end_date,
         o.expires_at,
         o.product_name,
         o.product_model,
@@ -84,13 +84,13 @@
     <insert id="insertOrder">
         INSERT INTO rental_orders (
             id, user_id, product_id, equipment_unit_id, source_reservation_id,
-            status, start_at, end_at, expires_at, product_name, product_model,
+            status, start_date, end_date, expires_at, product_name, product_model,
             equipment_display_code, currency, pricing_version, pricing_rule,
             billing_days, daily_rate, rental_amount, deposit_amount,
             total_amount, rounding_mode, price_snapshot
         )
         SELECT #{id}, r.user_id, r.product_id, r.equipment_unit_id, r.id,
-               'PENDING_CONFIRMATION', r.start_at, r.end_at, r.expires_at,
+               'PENDING_CONFIRMATION', r.start_date, r.end_date, r.expires_at,
                p.name, p.model, eu.display_code, r.currency, r.pricing_version,
                r.pricing_rule, r.billing_days, r.daily_rate, r.rental_amount,
                r.deposit_amount, r.total_amount, r.rounding_mode, r.price_snapshot
@@ -143,7 +143,7 @@
             received_at = CURRENT_TIMESTAMP(6)
         WHERE id = #{orderId}
           AND status = 'CONFIRMED'
-          AND start_at &lt;= CURRENT_TIMESTAMP(6)
+          AND start_date &lt;= DATE(CONVERT_TZ(CURRENT_TIMESTAMP(6), '+00:00', '+08:00'))
     </update>
 
     <update id="confirmPending">
@@ -153,7 +153,7 @@
         WHERE id = #{orderId}
           AND status = 'PENDING_CONFIRMATION'
           AND expires_at &gt; CURRENT_TIMESTAMP(6)
-          AND start_at &gt; CURRENT_TIMESTAMP(6)
+          AND start_date &gt; DATE(CONVERT_TZ(CURRENT_TIMESTAMP(6), '+00:00', '+08:00'))
     </update>
 
     <update id="cancelPending">

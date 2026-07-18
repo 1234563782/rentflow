@@ -20,8 +20,8 @@ export const catalogApi = {
   async product(productId: string) {
     return (await http.get<ProductDetail>(`/api/v1/products/${productId}`)).data
   },
-  async availability(productId: string, startAt: string, endAt: string) {
-    return (await http.post<Availability>('/api/v1/availability/search', { productId, startAt, endAt })).data
+  async availability(productId: string, startDate: string, endDate: string) {
+    return (await http.post<Availability>('/api/v1/availability/search', { productId, startDate, endDate })).data
   },
 }
 
@@ -49,8 +49,8 @@ export const notificationApi = {
 }
 
 export const quoteApi = {
-  async create(productId: string, startAt: string, endAt: string) {
-    return (await http.post<Quote>('/api/v1/quotes', { productId, startAt, endAt })).data
+  async create(productId: string, startDate: string, endDate: string) {
+    return (await http.post<Quote>('/api/v1/quotes', { productId, startDate, endDate })).data
   },
 }
 

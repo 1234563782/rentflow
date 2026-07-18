@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { ChatDotRound, Refresh, Search } from '@element-plus/icons-vue'
 import { catalogApi } from '@/services/api'
 import type { Category, Page, ProductSummary } from '@/types'
-import { apiErrorMessage, defaultRentalPeriod, formatMoney, toIsoPeriod } from '@/utils'
+import { apiErrorMessage, defaultRentalPeriod, formatMoney, isDateBeforeRentalStartInShanghai, toDateRange } from '@/utils'
 import ProductVisual from '@/components/ProductVisual.vue'
 
 const router = useRouter()
@@ -13,17 +13,18 @@ const error = ref('')
 const categories = ref<Category[]>([])
 const result = ref<Page<ProductSummary>>({ items: [], page: 0, size: 12, totalElements: 0, totalPages: 0 })
 const filters = reactive({ keyword: '', categoryId: '', period: defaultRentalPeriod() as [Date, Date] | null, page: 0, size: 12 })
+const disablePastDates = isDateBeforeRentalStartInShanghai
 
 async function load() {
   loading.value = true
   error.value = ''
-  const period = toIsoPeriod(filters.period)
+  const period = toDateRange(filters.period)
   try {
     result.value = await catalogApi.products({
       keyword: filters.keyword.trim() || undefined,
       categoryId: filters.categoryId || undefined,
-      startAt: period?.startAt,
-      endAt: period?.endAt,
+      startDate: period?.startDate,
+      endDate: period?.endDate,
       page: filters.page,
       size: filters.size,
     })
@@ -55,7 +56,7 @@ onMounted(async () => {
       <el-select v-model="filters.categoryId" clearable placeholder="全部类目">
         <el-option v-for="category in categories" :key="category.categoryId" :label="category.name" :value="category.categoryId" />
       </el-select>
-      <el-date-picker v-model="filters.period" type="datetimerange" range-separator="至" start-placeholder="开始时间" end-placeholder="结束时间" format="YYYY-MM-DD HH:mm" :clearable="true" />
+      <el-date-picker v-model="filters.period" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" format="YYYY-MM-DD" :disabled-date="disablePastDates" :clearable="true" />
       <el-button type="primary" native-type="submit" :loading="loading">查询</el-button>
     </form>
 

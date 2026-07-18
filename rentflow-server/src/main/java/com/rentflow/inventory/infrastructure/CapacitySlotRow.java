@@ -1,6 +1,6 @@
 package com.rentflow.inventory.infrastructure;
 
-import java.time.Instant;
+import java.time.LocalDate;
 
-public record CapacitySlotRow(Instant slotStart, int capacity) {
+public record CapacitySlotRow(LocalDate capacityDate, int capacity) {
 }

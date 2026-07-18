@@ -2,13 +2,14 @@ package com.rentflow.pricing.infrastructure;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 
 public record QuoteRecord(
         String id,
         String userId,
         String productId,
-        Instant startAt,
-        Instant endAt,
+        LocalDate startDate,
+        LocalDate endDate,
         int billingDays,
         String currency,
         long pricingVersion,

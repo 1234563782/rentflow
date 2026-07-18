@@ -16,8 +16,8 @@ import com.rentflow.pricing.infrastructure.QuoteRecord;
 import com.rentflow.shared.id.Ulid;
 import com.rentflow.shared.pricing.PriceSnapshot;
 import com.rentflow.shared.pricing.PricingCalculator;
+import com.rentflow.shared.time.RentalCalendar;
 import com.rentflow.shared.time.RentalPeriod;
-import com.rentflow.shared.time.UtcTimes;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +30,7 @@ public class QuoteApplicationService {
     private final CurrentUserProvider currentUserProvider;
     private final QuoteMapper quoteMapper;
     private final QuoteProperties properties;
+    private final RentalCalendar rentalCalendar;
     private final ObjectMapper objectMapper;
     private final AuditLogWriter auditLogWriter;
 
@@ -38,6 +39,7 @@ public class QuoteApplicationService {
             CurrentUserProvider currentUserProvider,
             QuoteMapper quoteMapper,
             QuoteProperties properties,
+            RentalCalendar rentalCalendar,
             ObjectMapper objectMapper,
             AuditLogWriter auditLogWriter
     ) {
@@ -45,6 +47,7 @@ public class QuoteApplicationService {
         this.currentUserProvider = currentUserProvider;
         this.quoteMapper = quoteMapper;
         this.properties = properties;
+        this.rentalCalendar = rentalCalendar;
         this.objectMapper = objectMapper;
         this.auditLogWriter = auditLogWriter;
     }
@@ -55,9 +58,7 @@ public class QuoteApplicationService {
         ProductPricing product = catalogQuery.requireProductPricing(request.productId());
         Instant databaseNow = quoteMapper.currentTimestamp();
         RentalPeriod period = RentalPeriod.validated(
-                UtcTimes.toInstant(request.startAt()),
-                UtcTimes.toInstant(request.endAt()),
-                databaseNow
+                request.startDate(), request.endDate(), databaseNow, rentalCalendar
         );
         PriceSnapshot snapshot = PricingCalculator.calculate(
                 period,
@@ -72,8 +73,8 @@ public class QuoteApplicationService {
                 quoteId,
                 user.userId(),
                 product.productId(),
-                period.startAt(),
-                period.endAt(),
+                period.startDate(),
+                period.endDate(),
                 snapshot.billingDays(),
                 snapshot.currency(),
                 snapshot.pricingVersion(),
@@ -90,23 +91,11 @@ public class QuoteApplicationService {
             throw new IllegalStateException("Quote insert did not affect exactly one row");
         }
         auditLogWriter.write(new AuditCommand(
-                user.userId(),
-                "QUOTE_CREATED",
-                "QUOTE",
-                quoteId,
-                "SUCCESS",
-                Map.of(
-                        "productId", product.productId(),
-                        "pricingVersion", snapshot.pricingVersion()
-                )
+                user.userId(), "QUOTE_CREATED", "QUOTE", quoteId, "SUCCESS",
+                Map.of("productId", product.productId(), "pricingVersion", snapshot.pricingVersion())
         ));
         return new QuoteResponse(
-                quoteId,
-                product.productId(),
-                period.startAt(),
-                period.endAt(),
-                expiresAt,
-                snapshotView
+                quoteId, product.productId(), period.startDate(), period.endDate(), expiresAt, snapshotView
         );
     }
 

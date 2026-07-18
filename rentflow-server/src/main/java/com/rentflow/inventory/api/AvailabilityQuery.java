@@ -1,7 +1,7 @@
 package com.rentflow.inventory.api;
 
-import java.time.Instant;
+import java.time.LocalDate;
 
 public interface AvailabilityQuery {
-    AvailabilityResult search(String productId, Instant startAt, Instant endAt);
+    AvailabilityResult search(String productId, LocalDate startDate, LocalDate endDate);
 }

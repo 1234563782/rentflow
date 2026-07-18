@@ -46,6 +46,8 @@ rentflow:
     cleanup-fixed-delay-millis: ${RENTFLOW_RESERVATION_CLEANUP_DELAY_MILLIS:60000}
   quote:
     ttl-seconds: ${RENTFLOW_QUOTE_TTL_SECONDS:300}
+  rental:
+    business-zone: ${RENTFLOW_RENTAL_BUSINESS_ZONE:Asia/Shanghai}
   order:
     cleanup-batch-size: ${RENTFLOW_ORDER_CLEANUP_BATCH_SIZE:100}
     cleanup-fixed-delay-millis: ${RENTFLOW_ORDER_CLEANUP_DELAY_MILLIS:60000}

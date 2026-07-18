@@ -33,6 +33,7 @@ import com.rentflow.shared.idempotency.IdempotentReplayException;
 import com.rentflow.shared.idempotency.MySqlIdempotencyMutex;
 import com.rentflow.shared.idempotency.RequestDigest;
 import com.rentflow.shared.pagination.PageQuery;
+import com.rentflow.shared.time.RentalCalendar;
 import com.rentflow.shared.web.ApiErrorResponse;
 import com.rentflow.shared.web.BusinessException;
 import com.rentflow.shared.web.CorrelationIdFilter;
@@ -63,6 +64,7 @@ public class OrderApplicationService {
     private final OrderMapper orderMapper;
     private final AuditLogWriter auditLogWriter;
     private final DomainEventPublisher eventPublisher;
+    private final RentalCalendar rentalCalendar;
     private final ObjectMapper objectMapper;
     private final MySqlIdempotencyMutex idempotencyMutex;
     private final IdempotencyProperties idempotencyProperties;
@@ -75,6 +77,7 @@ public class OrderApplicationService {
             OrderMapper orderMapper,
             AuditLogWriter auditLogWriter,
             DomainEventPublisher eventPublisher,
+            RentalCalendar rentalCalendar,
             ObjectMapper objectMapper,
             MySqlIdempotencyMutex idempotencyMutex,
             IdempotencyProperties idempotencyProperties
@@ -86,6 +89,7 @@ public class OrderApplicationService {
         this.orderMapper = orderMapper;
         this.auditLogWriter = auditLogWriter;
         this.eventPublisher = eventPublisher;
+        this.rentalCalendar = rentalCalendar;
         this.objectMapper = objectMapper;
         this.idempotencyMutex = idempotencyMutex;
         this.idempotencyProperties = idempotencyProperties;
@@ -186,8 +190,8 @@ public class OrderApplicationService {
                 order.equipmentDisplayCode(),
                 order.status(),
                 order.effectiveStatus(),
-                order.startAt(),
-                order.endAt(),
+                order.startDate(),
+                order.endDate(),
                 order.expiresAt(),
                 order.priceSnapshot(),
                 order.createdAt(),
@@ -248,11 +252,11 @@ public class OrderApplicationService {
                 || !reservation.snapshotComplete()) {
             throw business("ORDER_STATE_CONFLICT", "Order inventory hold is no longer valid", HttpStatus.CONFLICT);
         }
-        if (reservation.rentalStarted()) {
+        if (reservation.rentalStarted(rentalCalendar)) {
             throw business("RENTAL_ALREADY_STARTED", "Rental period has already started", HttpStatus.CONFLICT);
         }
         AssignedEquipment equipment = equipmentAssignmentAllocator.assign(
-                reservation.productId(), reservation.startAt(), reservation.endAt()
+                reservation.productId(), reservation.startDate(), reservation.endDate()
         );
         if (orderMapper.confirmPending(orderId) != 1) {
             throw new IllegalStateException("Pending order could not be confirmed");
@@ -470,8 +474,8 @@ public class OrderApplicationService {
                 row.equipmentDisplayCode(),
                 row.status(),
                 row.effectiveStatus(),
-                row.startAt(),
-                row.endAt(),
+                row.startDate(),
+                row.endDate(),
                 row.expiresAt(),
                 new PriceSnapshotView(
                         row.currency(),

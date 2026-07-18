@@ -7,7 +7,7 @@ import PriceBreakdown from '@/components/PriceBreakdown.vue'
 import { orderApi } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import type { OrderDetail, OrderStatus } from '@/types'
-import { apiErrorMessage, formatDateTime, newIdempotencyKey } from '@/utils'
+import { apiErrorMessage, formatDate, formatDateTime, newIdempotencyKey } from '@/utils'
 
 const route = useRoute()
 const router = useRouter()
@@ -34,7 +34,7 @@ const countdown = computed(() => `${Math.floor(secondsLeft.value / 60).toString(
 const needsUrgentConfirmation = computed(() => order.value?.effectiveStatus === 'PENDING_CONFIRMATION'
   && secondsLeft.value > 0 && secondsLeft.value <= 5 * 60)
 const canReceive = computed(() => order.value?.effectiveStatus === 'CONFIRMED'
-  && now.value >= new Date(order.value.startAt).getTime())
+  && now.value >= new Date(`${order.value.startDate}T00:00:00`).getTime())
 
 async function load() {
   loading.value = true
@@ -103,7 +103,7 @@ onBeforeUnmount(() => window.clearInterval(timer))
       </header>
       <div class="order-detail-sheet">
         <div class="order-product-summary"><div class="order-icon"><el-icon><Check /></el-icon></div><div><span>{{ order.productModel }}</span><h2>{{ order.productName }}</h2><p>{{ order.equipmentDisplayCode ? `设备编号 ${order.equipmentDisplayCode}` : '具体设备将在出库前分配' }}</p></div></div>
-        <div class="checkout-section period-summary"><div><span>开始时间</span><strong>{{ formatDateTime(order.startAt, auth.user?.timezone) }}</strong></div><div><span>结束时间</span><strong>{{ formatDateTime(order.endAt, auth.user?.timezone) }}</strong></div></div>
+        <div class="checkout-section period-summary"><div><span>开始日期</span><strong>{{ formatDate(order.startDate) }}</strong></div><div><span>结束日期</span><strong>{{ formatDate(order.endDate) }}</strong></div></div>
         <div class="checkout-section"><span class="section-label">订单金额</span><PriceBreakdown :snapshot="order.priceSnapshot" /></div>
         <div class="checkout-section"><span class="section-label">状态记录</span><el-timeline class="status-timeline"><el-timeline-item v-for="item in order.statusHistory" :key="item.createdAt" type="success" :timestamp="formatDateTime(item.createdAt, auth.user?.timezone)"><strong>{{ statusMeta[item.toStatus].label }}</strong><p>{{ item.reason || '状态已更新' }}</p></el-timeline-item></el-timeline></div>
       </div>

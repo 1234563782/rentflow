@@ -87,8 +87,8 @@ export interface UnreadNotificationCount {
 
 export interface Availability {
   productId: string
-  startAt: string
-  endAt: string
+  startDate: string
+  endDate: string
   available: boolean
   availableCount: number
   checkedAt: string
@@ -109,8 +109,8 @@ export interface PriceSnapshot {
 export interface Quote {
   quoteId: string
   productId: string
-  startAt: string
-  endAt: string
+  startDate: string
+  endDate: string
   expiresAt: string
   priceSnapshot: PriceSnapshot
 }
@@ -122,8 +122,8 @@ export interface Reservation {
   sourceQuoteId: string
   productId: string
   equipmentDisplayCode: string | null
-  startAt: string
-  endAt: string
+  startDate: string
+  endDate: string
   expiresAt: string
   status: ReservationStatus
   effectiveStatus: ReservationStatus
@@ -141,8 +141,8 @@ export interface Order {
   equipmentDisplayCode: string | null
   status: OrderStatus
   effectiveStatus: OrderStatus
-  startAt: string
-  endAt: string
+  startDate: string
+  endDate: string
   expiresAt: string
   priceSnapshot: PriceSnapshot
   createdAt: string
@@ -213,7 +213,7 @@ export interface RecommendationPresentation {
   followUp: FollowUpQuestion | null
   closing?: string | null
 }
-export interface RentalPeriodValue { startAt: string; endAt: string }
+export interface RentalPeriodValue { startDate: string; endDate: string }
 export interface MessageRun {
   runId: string
   conversationId: string

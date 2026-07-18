@@ -5,7 +5,7 @@ import { Box, Refresh } from '@element-plus/icons-vue'
 import { orderApi } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import type { Order, OrderStatus, Page } from '@/types'
-import { apiErrorMessage, formatDateTime, formatMoney } from '@/utils'
+import { apiErrorMessage, formatDate, formatDateTime, formatMoney } from '@/utils'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -70,7 +70,7 @@ onBeforeUnmount(() => window.clearInterval(timer))
     <div v-else-if="result.items.length" class="order-list">
       <article v-for="order in result.items" :key="order.orderId" class="order-row" :class="{ 'order-row--urgent': needsUrgentConfirmation(order) }" @click="openOrder(order)">
         <div class="order-icon"><el-icon><Box /></el-icon></div>
-        <div class="order-main"><span>{{ order.productModel }} · {{ order.equipmentDisplayCode || '待分配设备' }}</span><h2>{{ order.productName }}</h2><p>{{ formatDateTime(order.startAt, auth.user?.timezone) }} 至 {{ formatDateTime(order.endAt, auth.user?.timezone) }}</p></div>
+        <div class="order-main"><span>{{ order.productModel }} · {{ order.equipmentDisplayCode || '待分配设备' }}</span><h2>{{ order.productName }}</h2><p>{{ formatDate(order.startDate) }} 至 {{ formatDate(order.endDate) }}</p></div>
         <div class="order-amount">
           <el-tag :type="statusMeta[order.effectiveStatus].type" effect="plain">{{ statusMeta[order.effectiveStatus].label }}</el-tag>
           <strong>{{ formatMoney(order.priceSnapshot.totalAmount) }}</strong>

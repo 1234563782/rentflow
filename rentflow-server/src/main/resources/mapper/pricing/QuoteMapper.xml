@@ -5,11 +5,11 @@
 <mapper namespace="com.rentflow.pricing.infrastructure.QuoteMapper">
     <insert id="insert">
         INSERT INTO rental_quotes (
-            id, user_id, product_id, start_at, end_at, billing_days, currency,
+            id, user_id, product_id, start_date, end_date, billing_days, currency,
             pricing_version, pricing_rule, daily_rate, rental_amount,
             deposit_amount, total_amount, rounding_mode, price_snapshot, expires_at
         ) VALUES (
-            #{id}, #{userId}, #{productId}, #{startAt}, #{endAt}, #{billingDays}, #{currency},
+            #{id}, #{userId}, #{productId}, #{startDate}, #{endDate}, #{billingDays}, #{currency},
             #{pricingVersion}, #{pricingRule}, #{dailyRate}, #{rentalAmount},
             #{depositAmount}, #{totalAmount}, #{roundingMode}, #{priceSnapshot}, #{expiresAt}
         )
@@ -19,8 +19,8 @@
         SELECT q.id AS quote_id,
                q.user_id,
                q.product_id,
-               q.start_at,
-               q.end_at,
+               q.start_date,
+               q.end_date,
                q.billing_days,
                q.currency,
                q.pricing_version,

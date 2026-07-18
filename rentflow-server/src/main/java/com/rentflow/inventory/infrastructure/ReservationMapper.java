@@ -5,6 +5,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -48,7 +49,7 @@ public interface ReservationMapper {
 
     int countActiveForUser(@Param("userId") String userId);
 
-    Instant computeExpiration(@Param("startAt") Instant startAt, @Param("ttlSeconds") long ttlSeconds);
+    Instant computeExpiration(@Param("startDate") LocalDate startDate, @Param("ttlSeconds") long ttlSeconds);
 
     int insertReservation(ReservationInsert reservation);
 

@@ -11,76 +11,76 @@
     </select>
 
     <insert id="insertMissingSlots">
-        INSERT IGNORE INTO product_capacity_slots (product_id, slot_start, capacity)
+        INSERT IGNORE INTO product_capacity_days (product_id, capacity_date, capacity)
         VALUES
-        <foreach collection="slotStarts" item="slotStart" separator=",">
-            (#{productId}, #{slotStart}, #{capacity})
+        <foreach collection="capacityDates" item="capacityDate" separator=",">
+            (#{productId}, #{capacityDate}, #{capacity})
         </foreach>
     </insert>
 
     <select id="lockSlots" resultType="com.rentflow.inventory.infrastructure.CapacitySlotRow">
-        SELECT slot_start, capacity
-        FROM product_capacity_slots
+        SELECT capacity_date, capacity
+        FROM product_capacity_days
         WHERE product_id = #{productId}
-          AND slot_start IN
-          <foreach collection="slotStarts" item="slotStart" open="(" separator="," close=")">
-              #{slotStart}
+          AND capacity_date IN
+          <foreach collection="capacityDates" item="capacityDate" open="(" separator="," close=")">
+              #{capacityDate}
           </foreach>
-        ORDER BY slot_start ASC
+        ORDER BY capacity_date ASC
         FOR UPDATE
     </select>
 
     <update id="updateSlotCapacities">
-        UPDATE product_capacity_slots
+        UPDATE product_capacity_days
         SET capacity = #{capacity}
         WHERE product_id = #{productId}
-          AND slot_start IN
-          <foreach collection="slotStarts" item="slotStart" open="(" separator="," close=")">
-              #{slotStart}
+          AND capacity_date IN
+          <foreach collection="capacityDates" item="capacityDate" open="(" separator="," close=")">
+              #{capacityDate}
           </foreach>
     </update>
 
     <select id="maxEffectiveClaimsForDisplay" resultType="int">
         SELECT COALESCE(MAX(claimed_count), 0)
         FROM (
-            SELECT claims.slot_start, COUNT(*) AS claimed_count
+            SELECT claims.capacity_date, COUNT(*) AS claimed_count
             FROM reservation_capacity_claims claims
             JOIN inventory_reservations r ON r.id = claims.reservation_id
             WHERE claims.product_id = #{productId}
-              AND claims.slot_start IN
-              <foreach collection="slotStarts" item="slotStart" open="(" separator="," close=")">
-                  #{slotStart}
+              AND claims.capacity_date IN
+              <foreach collection="capacityDates" item="capacityDate" open="(" separator="," close=")">
+                  #{capacityDate}
               </foreach>
               AND (
                   (r.status = 'ACTIVE' AND r.expires_at &gt; CURRENT_TIMESTAMP(6))
                   OR r.status = 'CONSUMED'
               )
-            GROUP BY claims.slot_start
+            GROUP BY claims.capacity_date
         ) effective_claims
     </select>
 
     <select id="lockEffectiveClaims" resultType="com.rentflow.inventory.infrastructure.CapacityClaimRow">
-        SELECT claims.reservation_id, claims.slot_start
+        SELECT claims.reservation_id, claims.capacity_date
         FROM reservation_capacity_claims claims
         JOIN inventory_reservations r ON r.id = claims.reservation_id
         WHERE claims.product_id = #{productId}
-          AND claims.slot_start IN
-          <foreach collection="slotStarts" item="slotStart" open="(" separator="," close=")">
-              #{slotStart}
+          AND claims.capacity_date IN
+          <foreach collection="capacityDates" item="capacityDate" open="(" separator="," close=")">
+              #{capacityDate}
           </foreach>
           AND (
               (r.status = 'ACTIVE' AND r.expires_at &gt; CURRENT_TIMESTAMP(6))
               OR r.status = 'CONSUMED'
           )
-        ORDER BY claims.slot_start ASC, claims.reservation_id ASC
+        ORDER BY claims.capacity_date ASC, claims.reservation_id ASC
         FOR UPDATE
     </select>
 
     <insert id="insertClaims">
-        INSERT INTO reservation_capacity_claims (reservation_id, product_id, slot_start)
+        INSERT INTO reservation_capacity_claims (reservation_id, product_id, capacity_date)
         VALUES
-        <foreach collection="slotStarts" item="slotStart" separator=",">
-            (#{reservationId}, #{productId}, #{slotStart})
+        <foreach collection="capacityDates" item="capacityDate" separator=",">
+            (#{reservationId}, #{productId}, #{capacityDate})
         </foreach>
     </insert>
 </mapper>

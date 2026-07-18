@@ -19,7 +19,7 @@ export function formatMoney(value: string | number) {
 }
 
 export function pricingRuleLabel(snapshot: PriceSnapshot) {
-  return `按 24 小时向上取整 · ${snapshot.billingDays} 个计费日 · 固定押金`
+  return `按自然日计费 · 共 ${snapshot.billingDays} 天 · 固定押金`
 }
 
 export function apiErrorMessage(error: unknown) {
@@ -37,11 +37,23 @@ export function newIdempotencyKey() {
 }
 
 export function defaultRentalPeriod(): [Date, Date] {
-  const start = dayjs().add(1, 'day').hour(10).minute(0).second(0).millisecond(0)
+  const start = dayjs().tz('Asia/Shanghai').add(2, 'day').startOf('day')
   return [start.toDate(), start.add(1, 'day').toDate()]
 }
 
-export function toIsoPeriod(value: [Date, Date] | null) {
+export function toDateRange(value: [Date, Date] | null) {
   if (!value) return null
-  return { startAt: dayjs(value[0]).toISOString(), endAt: dayjs(value[1]).toISOString() }
+  return {
+    startDate: dayjs(value[0]).tz('Asia/Shanghai').format('YYYY-MM-DD'),
+    endDate: dayjs(value[1]).tz('Asia/Shanghai').format('YYYY-MM-DD'),
+  }
+}
+
+export function formatDate(value: string) {
+  return dayjs(value).format('YYYY-MM-DD')
+}
+
+export function isDateBeforeRentalStartInShanghai(value: Date) {
+  const earliestRentalDate = dayjs().tz('Asia/Shanghai').add(2, 'day').startOf('day')
+  return dayjs(value).tz('Asia/Shanghai').isBefore(earliestRentalDate, 'day')
 }

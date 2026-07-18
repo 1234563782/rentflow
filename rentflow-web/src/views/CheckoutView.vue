@@ -7,7 +7,7 @@ import PriceBreakdown from '@/components/PriceBreakdown.vue'
 import { orderApi } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import type { Order } from '@/types'
-import { apiErrorMessage, formatDateTime, isNetworkError, newIdempotencyKey } from '@/utils'
+import { apiErrorMessage, formatDate, isNetworkError, newIdempotencyKey } from '@/utils'
 
 const route = useRoute()
 const router = useRouter()
@@ -122,8 +122,8 @@ onBeforeUnmount(() => window.clearInterval(timer))
         <p>{{ order.productModel }} · {{ order.equipmentDisplayCode ? `设备编号 ${order.equipmentDisplayCode}` : '具体设备将在出库前分配' }}</p>
       </div>
       <div class="checkout-section period-summary">
-        <div><span>开始时间</span><strong>{{ formatDateTime(order.startAt, auth.user?.timezone) }}</strong></div>
-        <div><span>结束时间</span><strong>{{ formatDateTime(order.endAt, auth.user?.timezone) }}</strong></div>
+        <div><span>开始日期</span><strong>{{ formatDate(order.startDate) }}</strong></div>
+        <div><span>结束日期</span><strong>{{ formatDate(order.endDate) }}</strong></div>
       </div>
       <div class="checkout-section"><span class="section-label">冻结价格</span><PriceBreakdown :snapshot="order.priceSnapshot" /></div>
       <div class="checkout-actions">

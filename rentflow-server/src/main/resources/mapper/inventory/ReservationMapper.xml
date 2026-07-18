@@ -10,8 +10,8 @@
         r.equipment_unit_id,
         eu.display_code AS equipment_display_code,
         r.source_quote_id,
-        r.start_at,
-        r.end_at,
+        r.start_date,
+        r.end_date,
         r.expires_at,
         r.status,
         CASE
@@ -101,19 +101,19 @@
     <select id="computeExpiration" resultType="java.time.Instant">
         SELECT LEAST(
             TIMESTAMPADD(SECOND, #{ttlSeconds}, CURRENT_TIMESTAMP(6)),
-            #{startAt}
+            CONVERT_TZ(CONCAT(#{startDate}, ' 00:00:00'), '+08:00', '+00:00')
         )
     </select>
 
     <insert id="insertReservation">
         INSERT INTO inventory_reservations (
             id, user_id, product_id, source_quote_id,
-            start_at, end_at, expires_at, status, currency,
+            start_date, end_date, expires_at, status, currency,
             pricing_version, pricing_rule, billing_days, daily_rate,
             rental_amount, deposit_amount, total_amount, rounding_mode, price_snapshot
         ) VALUES (
             #{id}, #{userId}, #{quote.productId}, #{quote.quoteId},
-            #{quote.startAt}, #{quote.endAt}, #{expiresAt}, 'ACTIVE', #{quote.currency},
+            #{quote.startDate}, #{quote.endDate}, #{expiresAt}, 'ACTIVE', #{quote.currency},
             #{quote.pricingVersion}, #{quote.pricingRule}, #{quote.billingDays}, #{quote.dailyRate},
             #{quote.rentalAmount}, #{quote.depositAmount}, #{quote.totalAmount},
             #{quote.roundingMode}, #{quote.priceSnapshot}
@@ -180,8 +180,8 @@
                r.equipment_unit_id,
                eu.display_code AS equipment_display_code,
                eu.status AS equipment_status,
-               r.start_at,
-               r.end_at,
+               r.start_date,
+               r.end_date,
                r.expires_at,
                r.status,
                CASE
@@ -212,7 +212,7 @@
         WHERE id = #{reservationId}
           AND status = 'ACTIVE'
           AND expires_at &gt; CURRENT_TIMESTAMP(6)
-          AND start_at &gt; CURRENT_TIMESTAMP(6)
+          AND start_date &gt; DATE(CONVERT_TZ(CURRENT_TIMESTAMP(6), '+00:00', '+08:00'))
     </update>
 
     <update id="releaseForOrder">
