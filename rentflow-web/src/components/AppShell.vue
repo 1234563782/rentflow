@@ -45,13 +45,28 @@ async function refreshNotifications() {
 }
 
 async function markNotificationRead(notification: Notification) {
-  if (notification.readAt) return
+  if (notification.readAt) return true
   try {
     await notificationApi.markRead(notification.id)
     notifications.value = notifications.value.filter(({ id }) => id !== notification.id)
     unreadCount.value = Math.max(0, unreadCount.value - 1)
+    return true
   } catch {
     ElMessage.error('通知状态更新失败，请稍后重试')
+    return false
+  }
+}
+
+async function handleNotificationClick(notification: Notification) {
+  if (!await markNotificationRead(notification)) return
+
+  if (
+    notification.type === 'ORDER_CONFIRMATION_REMINDER' &&
+    notification.aggregateType === 'ORDER' &&
+    notification.aggregateId !== null &&
+    /^[0-9A-HJKMNP-TV-Z]{26}$/.test(notification.aggregateId)
+  ) {
+    await router.push(`/orders/${notification.aggregateId}/confirm`)
   }
 }
 
@@ -105,7 +120,7 @@ onBeforeUnmount(() => {
               <div v-if="notificationLoading && !notifications.length" class="notification-panel__loading"><el-skeleton animated :rows="3" /></div>
               <el-empty v-else-if="!notifications.length" :image-size="56" description="暂无未读通知" />
               <div v-else class="notification-list">
-                <button v-for="notification in notifications" :key="notification.id" class="notification-item" type="button" @click="markNotificationRead(notification)">
+                <button v-for="notification in notifications" :key="notification.id" class="notification-item" type="button" @click="handleNotificationClick(notification)">
                   <strong>{{ notification.title }}</strong>
                   <span>{{ notification.content }}</span>
                   <time>{{ formatDateTime(notification.createdAt, auth.user?.timezone) }}</time>

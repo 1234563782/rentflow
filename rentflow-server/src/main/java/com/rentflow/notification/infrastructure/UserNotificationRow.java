@@ -7,6 +7,8 @@ public record UserNotificationRow(
         String type,
         String title,
         String content,
+        String aggregateType,
+        String aggregateId,
         Instant readAt,
         Instant createdAt
 ) {

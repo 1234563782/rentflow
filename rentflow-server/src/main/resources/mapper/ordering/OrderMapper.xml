@@ -199,7 +199,7 @@
         WHERE status = 'PENDING_CONFIRMATION'
           AND confirmation_reminder_queued_at IS NULL
           AND expires_at &gt; CURRENT_TIMESTAMP(6)
-          AND expires_at &lt;= DATE_ADD(CURRENT_TIMESTAMP(6), INTERVAL #{leadTimeMillis} MICROSECOND)
+          AND expires_at &lt;= TIMESTAMPADD(MICROSECOND, #{leadTimeMillis} * 1000, CURRENT_TIMESTAMP(6))
         ORDER BY expires_at ASC, id ASC
         LIMIT #{batchSize}
         FOR UPDATE SKIP LOCKED

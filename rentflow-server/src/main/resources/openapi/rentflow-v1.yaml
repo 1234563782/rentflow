@@ -1095,6 +1095,11 @@ components:
           type: string
         content:
           type: string
+        aggregateType:
+          type: [string, 'null']
+        aggregateId:
+          type: [string, 'null']
+          pattern: '^[0-9A-HJKMNP-TV-Z]{26}$'
         readAt:
           type: [string, 'null']
           format: date-time

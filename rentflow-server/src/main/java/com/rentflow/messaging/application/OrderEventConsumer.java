@@ -31,6 +31,6 @@ public class OrderEventConsumer {
         String userId = event.payload().required("userId").asText();
         String orderId = event.payload().required("orderId").asText();
         String expiresAt = event.payload().required("expiresAt").asText();
-        notificationWriter.createOrderConfirmationReminder(userId, orderId, expiresAt);
+        notificationWriter.createOrderConfirmationReminder(userId, orderId, expiresAt, "ORDER", orderId);
     }
 }

@@ -25,14 +25,18 @@ public class NotificationApplicationService implements NotificationWriter {
 
     @Override
     @Transactional
-    public void createOrderConfirmationReminder(String userId, String orderId, String expiresAt) {
+    public void createOrderConfirmationReminder(
+            String userId, String orderId, String expiresAt, String aggregateType, String aggregateId
+    ) {
         notificationMapper.insert(
                 com.rentflow.shared.id.Ulid.next(),
                 userId,
                 "ORDER_CONFIRMATION_REMINDER",
                 "order-confirmation-reminder:" + orderId,
                 "订单即将过期",
-                "订单确认时间即将结束，请尽快确认。"
+                "订单确认时间即将结束，请尽快确认。",
+                aggregateType,
+                aggregateId
         );
     }
 
@@ -57,7 +61,9 @@ public class NotificationApplicationService implements NotificationWriter {
     }
 
     private NotificationResponse toResponse(UserNotificationRow row) {
-        return new NotificationResponse(row.id(), row.type(), row.title(), row.content(), row.readAt(), row.createdAt());
+        return new NotificationResponse(
+                row.id(), row.type(), row.title(), row.content(), row.aggregateType(), row.aggregateId(), row.readAt(), row.createdAt()
+        );
     }
 
     private int totalPages(long total, int size) {

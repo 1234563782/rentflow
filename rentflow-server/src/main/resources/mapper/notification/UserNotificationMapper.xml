@@ -2,12 +2,12 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.rentflow.notification.infrastructure.UserNotificationMapper">
     <insert id="insert">
-        INSERT IGNORE INTO user_notifications (id, user_id, type, unique_key, title, content)
-        VALUES (#{id}, #{userId}, #{type}, #{uniqueKey}, #{title}, #{content})
+        INSERT IGNORE INTO user_notifications (id, user_id, type, unique_key, title, content, aggregate_type, aggregate_id)
+        VALUES (#{id}, #{userId}, #{type}, #{uniqueKey}, #{title}, #{content}, #{aggregateType}, #{aggregateId})
     </insert>
 
     <select id="listForUser" resultType="com.rentflow.notification.infrastructure.UserNotificationRow">
-        SELECT id, type, title, content, read_at, created_at
+        SELECT id, type, title, content, aggregate_type, aggregate_id, read_at, created_at
         FROM user_notifications
         WHERE user_id = #{userId}
         ORDER BY created_at DESC, id DESC

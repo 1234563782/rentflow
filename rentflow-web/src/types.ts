@@ -73,6 +73,8 @@ export interface ReviewPage extends Page<ProductReview> {
 export interface Notification {
   id: string
   type: string
+  aggregateType: string | null
+  aggregateId: string | null
   title: string
   content: string
   readAt: string | null

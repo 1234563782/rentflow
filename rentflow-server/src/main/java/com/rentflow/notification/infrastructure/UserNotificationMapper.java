@@ -13,7 +13,9 @@ public interface UserNotificationMapper {
             @Param("type") String type,
             @Param("uniqueKey") String uniqueKey,
             @Param("title") String title,
-            @Param("content") String content
+            @Param("content") String content,
+            @Param("aggregateType") String aggregateType,
+            @Param("aggregateId") String aggregateId
     );
 
     List<UserNotificationRow> listForUser(
