@@ -24,3 +24,4 @@ gearmate-agent/build/
 gearmate-agent/*.egg-info/
 /rentflow-web/.codex-vite.out.log
 /rentflow-web/.codex-vite.err.log
+/.claude/
