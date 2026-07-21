@@ -1,84 +1,58 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Check, RefreshRight } from '@element-plus/icons-vue'
-import PriceBreakdown from '@/components/PriceBreakdown.vue'
-import { orderApi } from '@/services/api'
+import { ArrowLeft, Box, RefreshRight, Van } from '@element-plus/icons-vue'
+import { storeApi } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
-import type { OrderDetail, OrderStatus } from '@/types'
-import { apiErrorMessage, formatDate, formatDateTime, newIdempotencyKey } from '@/utils'
+import type { StoreOrder, StoreOrderStatus } from '@/types'
+import { apiErrorMessage, formatDateTime, formatMoney, newIdempotencyKey } from '@/utils'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
-const order = ref<OrderDetail>()
+const order = ref<StoreOrder>()
 const loading = ref(true)
 const error = ref('')
-const now = ref(Date.now())
-const cancelling = ref(false)
-const receiving = ref(false)
-let timer: number | undefined
+const actionLoading = ref(false)
 
-const statusMeta: Record<OrderStatus, { label: string; type: 'success' | 'warning' | 'info' | 'danger' }> = {
-  PENDING_CONFIRMATION: { label: '待确认', type: 'warning' },
-  CONFIRMED: { label: '已确认', type: 'success' },
-  RECEIVED: { label: '已收货', type: 'success' },
-  CANCELLED: { label: '已取消', type: 'info' },
-  EXPIRED: { label: '已过期', type: 'danger' },
+const statusMeta: Record<StoreOrderStatus, { label: string; type: 'success' | 'warning' | 'info' | 'danger'; description: string }> = {
+  PENDING_PAYMENT: { label: '待支付', type: 'warning', description: '库存已预占，请在支付截止时间前完成支付' },
+  PAID: { label: '待发货', type: 'success', description: '支付成功，正在等待商家发货' },
+  SHIPPED: { label: '待收货', type: 'success', description: '商品已发出，请留意物流进度' },
+  RECEIVED: { label: '已完成', type: 'success', description: '订单已确认收货' },
+  CANCELLED: { label: '已取消', type: 'info', description: '订单已取消，预占库存已释放' },
+  CLOSED: { label: '已关闭', type: 'danger', description: '订单支付超时，预占库存已释放' },
 }
-const secondsLeft = computed(() => order.value?.effectiveStatus === 'PENDING_CONFIRMATION'
-  ? Math.max(0, Math.ceil((new Date(order.value.expiresAt).getTime() - now.value) / 1000))
-  : 0)
-const countdown = computed(() => `${Math.floor(secondsLeft.value / 60).toString().padStart(2, '0')}:${(secondsLeft.value % 60).toString().padStart(2, '0')}`)
-const needsUrgentConfirmation = computed(() => order.value?.effectiveStatus === 'PENDING_CONFIRMATION'
-  && secondsLeft.value > 0 && secondsLeft.value <= 5 * 60)
-const canReceive = computed(() => order.value?.effectiveStatus === 'CONFIRMED'
-  && now.value >= new Date(`${order.value.startDate}T00:00:00`).getTime())
+const firstProduct = computed(() => order.value?.items[0])
 
 async function load() {
   loading.value = true
   error.value = ''
-  try { order.value = await orderApi.get(String(route.params.orderId)) }
+  try { order.value = await storeApi.order(String(route.params.orderId)) }
   catch (cause) { error.value = apiErrorMessage(cause) }
   finally { loading.value = false }
 }
-async function cancelOrder() {
-  if (!order.value || order.value.effectiveStatus !== 'PENDING_CONFIRMATION') return
-  const confirmed = await ElMessageBox.confirm('取消后设备会立即释放。', '取消待确认订单', {
-    type: 'warning', confirmButtonText: '确认取消', cancelButtonText: '继续保留',
-  }).then(() => true).catch(() => false)
-  if (!confirmed) return
-  cancelling.value = true
-  const storageKey = `rentflow.attempt.cancel.${order.value.orderId}`
+
+async function runAction(action: 'pay' | 'cancel' | 'receive') {
+  if (!order.value) return
+  if (action === 'cancel') {
+    const confirmed = await ElMessageBox.confirm('取消后会立即释放预占库存。', '取消订单', { type: 'warning' }).then(() => true).catch(() => false)
+    if (!confirmed) return
+  }
+  const storageKey = `rentflow.attempt.store.${action}.${order.value.orderId}`
   const key = sessionStorage.getItem(storageKey) || newIdempotencyKey()
   sessionStorage.setItem(storageKey, key)
+  actionLoading.value = true
   try {
-    await orderApi.cancel(order.value.orderId, key)
+    order.value = await storeApi[action](order.value.orderId, key)
     sessionStorage.removeItem(storageKey)
-    ElMessage.success('订单已取消')
-    await load()
+    ElMessage.success(action === 'pay' ? '模拟支付成功' : action === 'cancel' ? '订单已取消' : '已确认收货')
   } catch (cause) { ElMessage.error(apiErrorMessage(cause)) }
-  finally { cancelling.value = false }
+  finally { actionLoading.value = false }
 }
 
-async function receiveOrder() {
-  if (!order.value || !canReceive.value) return
-  receiving.value = true
-  const storageKey = `rentflow.attempt.receive.${order.value.orderId}`
-  const key = sessionStorage.getItem(storageKey) || newIdempotencyKey()
-  sessionStorage.setItem(storageKey, key)
-  try {
-    await orderApi.receive(order.value.orderId, key)
-    sessionStorage.removeItem(storageKey)
-    ElMessage.success('已确认收货')
-    await load()
-  } catch (cause) { ElMessage.error(apiErrorMessage(cause)) }
-  finally { receiving.value = false }
-}
-
-onMounted(() => { void load(); timer = window.setInterval(() => { now.value = Date.now() }, 1000) })
-onBeforeUnmount(() => window.clearInterval(timer))
+onMounted(() => { void load() })
 </script>
 
 <template>
@@ -87,25 +61,44 @@ onBeforeUnmount(() => window.clearInterval(timer))
     <div v-if="loading" class="order-detail-sheet"><el-skeleton animated :rows="12" /></div>
     <div v-else-if="error" class="state-panel"><h2>订单加载失败</h2><p>{{ error }}</p><el-button :icon="RefreshRight" @click="load">重试</el-button></div>
     <template v-else-if="order">
-      <header class="order-detail-header" :class="{ 'order-detail-header--urgent': needsUrgentConfirmation }">
-        <div><span class="eyebrow">订单详情</span><h1>{{ order.productName }}</h1><p>订单号 {{ order.orderId }}</p></div>
+      <header class="order-detail-header">
+        <div><span class="eyebrow">订单详情</span><h1>{{ statusMeta[order.status].label }}</h1><p>{{ statusMeta[order.status].description }}</p></div>
         <div class="order-header-actions">
-          <el-tag size="large" :type="statusMeta[order.effectiveStatus].type" effect="dark">{{ statusMeta[order.effectiveStatus].label }}</el-tag>
-          <template v-if="order.effectiveStatus === 'PENDING_CONFIRMATION'">
-            <span class="header-countdown" :class="{ 'header-countdown--urgent': needsUrgentConfirmation }">{{ countdown }}</span>
-            <span v-if="needsUrgentConfirmation" class="urgent-confirmation">即将过期，请尽快确认</span>
-            <el-button @click="cancelOrder" :loading="cancelling">取消</el-button>
-            <el-button type="primary" @click="router.push(`/orders/${order.orderId}/confirm`)">继续确认</el-button>
+          <el-tag size="large" :type="statusMeta[order.status].type" effect="dark">{{ statusMeta[order.status].label }}</el-tag>
+          <template v-if="order.status === 'PENDING_PAYMENT'">
+            <el-button :loading="actionLoading" @click="runAction('cancel')">取消订单</el-button>
+            <el-button type="primary" :loading="actionLoading" @click="runAction('pay')">模拟支付</el-button>
           </template>
-          <el-button v-else-if="canReceive" type="primary" :loading="receiving" @click="receiveOrder">确认收货</el-button>
-          <el-button v-else-if="order.effectiveStatus === 'RECEIVED'" type="primary" plain @click="router.push(`/products/${order.productId}#reviews`)">去评价</el-button>
+          <el-button v-else-if="order.status === 'SHIPPED'" type="primary" :loading="actionLoading" @click="runAction('receive')">确认收货</el-button>
+          <el-button v-else-if="order.status === 'RECEIVED' && firstProduct" type="primary" plain @click="router.push(`/products/${firstProduct.productId}#reviews`)">评价商品</el-button>
         </div>
       </header>
       <div class="order-detail-sheet">
-        <div class="order-product-summary"><div class="order-icon"><el-icon><Check /></el-icon></div><div><span>{{ order.productModel }}</span><h2>{{ order.productName }}</h2><p>{{ order.equipmentDisplayCode ? `设备编号 ${order.equipmentDisplayCode}` : '具体设备将在出库前分配' }}</p></div></div>
-        <div class="checkout-section period-summary"><div><span>开始日期</span><strong>{{ formatDate(order.startDate) }}</strong></div><div><span>结束日期</span><strong>{{ formatDate(order.endDate) }}</strong></div></div>
-        <div class="checkout-section"><span class="section-label">订单金额</span><PriceBreakdown :snapshot="order.priceSnapshot" /></div>
-        <div class="checkout-section"><span class="section-label">状态记录</span><el-timeline class="status-timeline"><el-timeline-item v-for="item in order.statusHistory" :key="item.createdAt" type="success" :timestamp="formatDateTime(item.createdAt, auth.user?.timezone)"><strong>{{ statusMeta[item.toStatus].label }}</strong><p>{{ item.reason || '状态已更新' }}</p></el-timeline-item></el-timeline></div>
+        <div class="checkout-section">
+          <span class="section-label">商品明细</span>
+          <div class="store-order-items">
+            <div v-for="item in order.items" :key="item.orderItemId" class="store-order-item">
+              <div class="order-icon"><el-icon><Box /></el-icon></div>
+              <div><strong>{{ item.productName }}</strong><span>{{ item.skuName }} · 数量 {{ item.quantity }}</span></div>
+              <strong>{{ formatMoney(item.subtotal) }}</strong>
+            </div>
+          </div>
+        </div>
+        <div v-if="order.carrier || order.trackingNumber" class="checkout-section shipping-summary">
+          <span class="section-label"><el-icon><Van /></el-icon> 物流信息</span>
+          <div><span>承运商</span><strong>{{ order.carrier }}</strong></div><div><span>物流单号</span><strong>{{ order.trackingNumber }}</strong></div>
+        </div>
+        <div class="checkout-section checkout-total">
+          <div><span>商品金额</span><strong>{{ formatMoney(order.itemAmount) }}</strong></div>
+          <div><span>运费</span><strong>{{ formatMoney(order.shippingAmount) }}</strong></div>
+          <div><span>实付金额</span><strong>{{ formatMoney(order.payableAmount) }}</strong></div>
+        </div>
+        <div class="checkout-section order-time-grid">
+          <div><span>下单时间</span><strong>{{ formatDateTime(order.createdAt, auth.user?.timezone) }}</strong></div>
+          <div v-if="order.paidAt"><span>支付时间</span><strong>{{ formatDateTime(order.paidAt, auth.user?.timezone) }}</strong></div>
+          <div v-if="order.shippedAt"><span>发货时间</span><strong>{{ formatDateTime(order.shippedAt, auth.user?.timezone) }}</strong></div>
+          <div v-if="order.receivedAt"><span>收货时间</span><strong>{{ formatDateTime(order.receivedAt, auth.user?.timezone) }}</strong></div>
+        </div>
       </div>
     </template>
   </section>

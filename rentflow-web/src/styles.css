@@ -95,6 +95,7 @@ h1, h2, p { margin-top: 0; }
 .browse-link { display: block; margin: 22px auto 0; border: 0; background: transparent; color: var(--forest-2); cursor: pointer; }
 
 .filter-band { display: grid; grid-template-columns: minmax(220px, 1.2fr) minmax(150px, .55fr) minmax(320px, 1fr) auto; gap: 10px; padding: 16px; background: #e9eeea; border: 1px solid #d8dfda; border-radius: 8px; }
+.store-filter-band { grid-template-columns: minmax(260px, 1fr) minmax(180px, .45fr) auto; }
 .filter-band .el-date-editor, .booking-tool .el-date-editor { width: 100%; }
 .result-meta { min-height: 48px; display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 13px; }
 .period-hint { color: var(--forest-2); }
@@ -132,6 +133,17 @@ h1, h2, p { margin-top: 0; }
 .spec-list dt { color: var(--muted); font-size: 12px; }
 .spec-list dd { margin: 7px 0 0; font-weight: 700; overflow-wrap: anywhere; }
 .booking-tool { position: sticky; top: 92px; padding: 22px; background: var(--surface); border: 1px solid #cfd8d3; border-radius: 8px; box-shadow: 0 14px 34px rgba(39,60,54,.08); }
+.sku-options { display: grid; gap: 9px; margin: 12px 0 18px; }
+.sku-option { width: 100%; display: flex; justify-content: space-between; gap: 16px; padding: 13px; text-align: left; color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
+.sku-option:hover { border-color: #91a69f; }
+.sku-option.active { border-color: var(--green); box-shadow: inset 3px 0 0 var(--green); background: #f5f9f7; }
+.sku-option:disabled { cursor: not-allowed; opacity: .5; }
+.sku-option span { display: grid; gap: 4px; }
+.sku-option span:last-child { text-align: right; }
+.sku-option small { color: var(--muted); line-height: 1.35; }
+.purchase-summary { display: grid; gap: 13px; padding: 16px 0; border-top: 1px solid var(--line); }
+.purchase-summary > div { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.purchase-summary > div:first-child strong { color: var(--coral); font-size: 24px; }
 .tool-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; font-size: 18px; font-weight: 800; }
 .tool-heading .el-icon { color: var(--coral); }
 .field-help { margin: 9px 0 16px; color: var(--muted); font-size: 12px; line-height: 1.5; }
@@ -180,6 +192,21 @@ h1, h2, p { margin-top: 0; }
 .review-pagination { justify-content: center; margin-top: 22px; }
 
 .checkout-sheet, .order-detail-sheet { overflow: hidden; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.checkout-product-line { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.checkout-product-line > strong { color: var(--coral); font-size: 22px; white-space: nowrap; }
+.address-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+.address-form > :last-child { grid-column: 1 / -1; }
+.checkout-total { display: grid; gap: 12px; }
+.checkout-total > div { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.checkout-total > div:last-child { padding-top: 12px; border-top: 1px solid var(--line); }
+.checkout-total > div:last-child strong { color: var(--coral); font-size: 22px; }
+.store-order-items { display: grid; gap: 12px; margin-top: 14px; }
+.store-order-item { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.store-order-item > div:nth-child(2) { display: grid; gap: 4px; }
+.store-order-item span { color: var(--muted); font-size: 13px; }
+.shipping-summary > div, .order-time-grid > div { display: flex; justify-content: space-between; gap: 20px; margin-top: 12px; }
+.shipping-summary > div span, .order-time-grid > div span { color: var(--muted); }
+.order-time-grid { display: grid; gap: 8px; }
 .reservation-clock { display: flex; align-items: center; gap: 14px; padding: 18px 22px; background: var(--forest); color: white; }
 .reservation-clock.expired { background: #6c4c45; }
 .reservation-clock > .el-icon { font-size: 28px; }
@@ -321,6 +348,7 @@ h1, h2, p { margin-top: 0; }
   .login-panel { padding: 34px 22px 45px; }
   .login-form-wrap h2 { font-size: 29px; }
   .filter-band { grid-template-columns: 1fr; padding: 12px; }
+  .store-filter-band { grid-template-columns: 1fr; }
   .filter-band .el-date-editor { grid-column: auto; width: 100%; }
   .product-grid { grid-template-columns: 1fr; gap: 14px; }
   .product-card h2 { min-height: 0; }
@@ -330,6 +358,11 @@ h1, h2, p { margin-top: 0; }
   .review-summary { justify-content: flex-start; }
   .review-composer-actions, .review-login-prompt { align-items: flex-start; flex-direction: column; }
   .booking-tool { position: static; padding: 18px; }
+  .address-form { grid-template-columns: 1fr; }
+  .address-form > :last-child { grid-column: auto; }
+  .checkout-product-line { align-items: flex-start; }
+  .store-order-item { grid-template-columns: 36px minmax(0, 1fr); }
+  .store-order-item > strong { grid-column: 2; }
   .spec-list { grid-template-columns: 1fr; }
   .spec-list div { padding: 12px 0; border-right: 0; border-bottom: 1px solid var(--line); }
   .spec-list div:last-child { border-bottom: 0; }

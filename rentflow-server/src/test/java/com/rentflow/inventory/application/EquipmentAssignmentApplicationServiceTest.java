@@ -6,7 +6,7 @@ import com.rentflow.inventory.infrastructure.InventoryLockMapper;
 import com.rentflow.shared.web.BusinessException;
 import org.junit.jupiter.api.Test;
 
-import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,8 +19,8 @@ class EquipmentAssignmentApplicationServiceTest {
     private static final String PRODUCT_ID = "01J00000000000000000000101";
     private static final String FIRST_EQUIPMENT_ID = "01J00000000000000000001001";
     private static final String SECOND_EQUIPMENT_ID = "01J00000000000000000001002";
-    private static final Instant START = Instant.parse("2026-07-20T00:00:00Z");
-    private static final Instant END = Instant.parse("2026-07-21T00:00:00Z");
+    private static final LocalDate START = LocalDate.parse("2026-07-20");
+    private static final LocalDate END = LocalDate.parse("2026-07-21");
 
     @Test
     void skipsConflictingUnitAndReturnsNextLockableUnit() {

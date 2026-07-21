@@ -40,6 +40,28 @@ public class NotificationApplicationService implements NotificationWriter {
         );
     }
 
+    @Override
+    @Transactional
+    public void createStoreOrderNotification(
+            String userId,
+            String orderId,
+            String eventType,
+            String notificationType,
+            String title,
+            String content
+    ) {
+        notificationMapper.insert(
+                com.rentflow.shared.id.Ulid.next(),
+                userId,
+                notificationType,
+                "store-order-event:" + eventType + ":" + orderId,
+                title,
+                content,
+                "STORE_ORDER",
+                orderId
+        );
+    }
+
     @Transactional(readOnly = true)
     public NotificationPage list(PageQuery query) {
         String userId = currentUserProvider.requireCurrentUser().userId();

@@ -10,12 +10,13 @@ import com.rentflow.pricing.api.QuoteRequest;
 import com.rentflow.pricing.api.QuoteResponse;
 import com.rentflow.pricing.infrastructure.QuoteMapper;
 import com.rentflow.pricing.infrastructure.QuoteRecord;
+import com.rentflow.shared.time.RentalCalendar;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.OffsetDateTime;
+import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -51,14 +52,15 @@ class QuoteApplicationServiceTest {
                 users,
                 mapper,
                 new QuoteProperties(300),
+                new RentalCalendar(),
                 new ObjectMapper(),
                 mock(AuditLogWriter.class)
         );
 
         QuoteResponse response = service.create(new QuoteRequest(
                 "01J00000000000000000000101",
-                OffsetDateTime.parse("2026-07-14T00:00:00Z"),
-                OffsetDateTime.parse("2026-07-15T01:00:00Z")
+                LocalDate.parse("2026-07-15"),
+                LocalDate.parse("2026-07-16")
         ));
 
         ArgumentCaptor<QuoteRecord> record = ArgumentCaptor.forClass(QuoteRecord.class);

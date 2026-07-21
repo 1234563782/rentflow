@@ -60,15 +60,19 @@ public class SecurityConfiguration {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.POST, "/api/v1/products/*/reviews").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/store/products/*/reviews").authenticated()
                         .requestMatchers(
                                 "/api/v1/auth/login",
                                 "/api/v1/categories",
                                 "/api/v1/catalog/use-cases",
                                 "/api/v1/products",
                                 "/api/v1/products/**",
+                                "/api/v1/store/products/**",
+                                "/api/v1/store/skus/**",
                                 "/api/v1/availability/search",
                                 "/actuator/health"
                         ).permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/store/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )

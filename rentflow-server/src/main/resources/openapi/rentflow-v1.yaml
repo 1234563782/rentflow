@@ -14,6 +14,7 @@ tags:
   - name: Orders
   - name: Reviews
   - name: Notifications
+  - name: Store
 security:
   - bearerAuth: []
 paths:
@@ -459,6 +460,195 @@ paths:
         '409':
           $ref: '#/components/responses/StateConflict'
 
+  /api/v1/store/products/{productId}/skus:
+    get:
+      tags: [Store]
+      operationId: listStoreProductSkus
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '200':
+          description: Enabled purchasable SKUs with current available stock
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StoreSku'
+
+  /api/v1/store/skus/{skuId}:
+    get:
+      tags: [Store]
+      operationId: getStoreSku
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/SkuId'
+      responses:
+        '200':
+          description: Current SKU price and available stock
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoreSku'
+
+  /api/v1/store/products/{productId}/reviews:
+    parameters:
+      - $ref: '#/components/parameters/ProductId'
+    get:
+      tags: [Store]
+      operationId: listStoreProductReviews
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Verified-purchase reviews
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoreReviewPage'
+    post:
+      tags: [Store]
+      operationId: createStoreProductReview
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreReviewRequest'
+      responses:
+        '201':
+          description: Review created from the earliest received unreviewed order item
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoreReview'
+
+  /api/v1/store/orders/checkout:
+    post:
+      tags: [Store]
+      operationId: checkoutStoreOrder
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreCheckoutRequest'
+      responses:
+        '201':
+          description: Pending-payment order created and SKU stock reserved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoreOrder'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+
+  /api/v1/store/orders:
+    get:
+      tags: [Store]
+      operationId: listStoreOrders
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/StoreOrderStatus'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Current user's commerce orders
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoreOrderPage'
+
+  /api/v1/store/orders/{orderId}:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    get:
+      tags: [Store]
+      operationId: getStoreOrder
+      responses:
+        '200':
+          description: Current user's commerce order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoreOrder'
+
+  /api/v1/store/orders/{orderId}/pay:
+    post:
+      tags: [Store]
+      operationId: payStoreOrder
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Mock payment completed and reserved stock sold
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoreOrder'
+
+  /api/v1/store/orders/{orderId}/cancel:
+    post:
+      tags: [Store]
+      operationId: cancelStoreOrder
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Pending-payment order cancelled and reserved stock released
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoreOrder'
+
+  /api/v1/store/orders/{orderId}/receive:
+    post:
+      tags: [Store]
+      operationId: receiveStoreOrder
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Shipped order confirmed received
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoreOrder'
+
+  /api/v1/store/admin/orders/{orderId}/ship:
+    post:
+      tags: [Store]
+      operationId: shipStoreOrder
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreShipRequest'
+      responses:
+        '200':
+          description: Paid order shipped by an administrator
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoreOrder'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -481,6 +671,12 @@ components:
         $ref: '#/components/schemas/Ulid'
     OrderId:
       name: orderId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Ulid'
+    SkuId:
+      name: skuId
       in: path
       required: true
       schema:
@@ -1137,6 +1333,244 @@ components:
           type: integer
           format: int64
           minimum: 0
+    StoreSku:
+      type: object
+      additionalProperties: false
+      required: [skuId, productId, skuCode, skuName, specs, salePrice, availableQuantity, enabled]
+      properties:
+        skuId:
+          $ref: '#/components/schemas/Ulid'
+        productId:
+          $ref: '#/components/schemas/Ulid'
+        skuCode:
+          type: string
+        skuName:
+          type: string
+        specs:
+          type: object
+          additionalProperties: true
+        salePrice:
+          $ref: '#/components/schemas/Money'
+        availableQuantity:
+          type: integer
+          minimum: 0
+        enabled:
+          type: boolean
+    StoreCheckoutRequest:
+      type: object
+      additionalProperties: false
+      required: [items, address]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: object
+            additionalProperties: false
+            required: [skuId, quantity]
+            properties:
+              skuId:
+                $ref: '#/components/schemas/Ulid'
+              quantity:
+                type: integer
+                minimum: 1
+                maximum: 99
+        address:
+          $ref: '#/components/schemas/StoreAddress'
+    StoreAddress:
+      type: object
+      additionalProperties: false
+      required: [recipientName, recipientPhone, province, city, district, addressLine]
+      properties:
+        recipientName:
+          type: string
+          maxLength: 64
+        recipientPhone:
+          type: string
+          maxLength: 32
+        province:
+          type: string
+          maxLength: 64
+        city:
+          type: string
+          maxLength: 64
+        district:
+          type: string
+          maxLength: 64
+        addressLine:
+          type: string
+          maxLength: 255
+    StoreOrderStatus:
+      type: string
+      enum: [PENDING_PAYMENT, PAID, SHIPPED, RECEIVED, CANCELLED, CLOSED]
+    StoreOrderItem:
+      type: object
+      additionalProperties: false
+      required: [orderItemId, productId, skuId, productName, skuName, specs, unitPrice, quantity, subtotal]
+      properties:
+        orderItemId:
+          $ref: '#/components/schemas/Ulid'
+        productId:
+          $ref: '#/components/schemas/Ulid'
+        skuId:
+          $ref: '#/components/schemas/Ulid'
+        productName:
+          type: string
+        skuName:
+          type: string
+        specs:
+          type: object
+          additionalProperties: true
+        unitPrice:
+          $ref: '#/components/schemas/Money'
+        quantity:
+          type: integer
+          minimum: 1
+        subtotal:
+          $ref: '#/components/schemas/Money'
+    StoreOrder:
+      type: object
+      additionalProperties: false
+      required: [orderId, status, currency, itemAmount, shippingAmount, payableAmount, paymentExpiresAt, createdAt, paidAt, shippedAt, receivedAt, cancelledAt, closedAt, carrier, trackingNumber, items]
+      properties:
+        orderId:
+          $ref: '#/components/schemas/Ulid'
+        status:
+          $ref: '#/components/schemas/StoreOrderStatus'
+        currency:
+          type: string
+          const: CNY
+        itemAmount:
+          $ref: '#/components/schemas/Money'
+        shippingAmount:
+          $ref: '#/components/schemas/Money'
+        payableAmount:
+          $ref: '#/components/schemas/Money'
+        paymentExpiresAt:
+          $ref: '#/components/schemas/Timestamp'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        paidAt:
+          type: [string, 'null']
+          format: date-time
+        shippedAt:
+          type: [string, 'null']
+          format: date-time
+        receivedAt:
+          type: [string, 'null']
+          format: date-time
+        cancelledAt:
+          type: [string, 'null']
+          format: date-time
+        closedAt:
+          type: [string, 'null']
+          format: date-time
+        carrier:
+          type: [string, 'null']
+        trackingNumber:
+          type: [string, 'null']
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/StoreOrderItem'
+    StoreOrderPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, size, totalElements, totalPages]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/StoreOrder'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+        totalElements:
+          type: integer
+          format: int64
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+    StoreShipRequest:
+      type: object
+      additionalProperties: false
+      required: [carrier, trackingNumber]
+      properties:
+        carrier:
+          type: string
+          maxLength: 64
+        trackingNumber:
+          type: string
+          maxLength: 128
+    StoreReviewRequest:
+      type: object
+      additionalProperties: false
+      required: [rating, content]
+      properties:
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        content:
+          type: string
+          minLength: 1
+          maxLength: 500
+    StoreReview:
+      type: object
+      additionalProperties: false
+      required: [reviewId, rating, content, reviewerName, createdAt]
+      properties:
+        reviewId:
+          $ref: '#/components/schemas/Ulid'
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        content:
+          type: string
+        reviewerName:
+          type: string
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+    StoreReviewPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, size, totalElements, totalPages, statistics]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/StoreReview'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+        totalElements:
+          type: integer
+          format: int64
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+        statistics:
+          type: object
+          required: [averageRating, reviewCount]
+          properties:
+            averageRating:
+              type: number
+              minimum: 0
+              maximum: 5
+            reviewCount:
+              type: integer
+              format: int64
+              minimum: 0
     ErrorResponse:
       type: object
       additionalProperties: false

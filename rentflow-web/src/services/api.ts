@@ -1,7 +1,8 @@
 import { http } from './http'
 import type {
   Availability, Category, CreateReviewRequest, LoginResponse, Notification, Order, OrderDetail, Page, ProductDetail,
-  ProductReview, ProductSummary, Quote, Reservation, ReviewPage, UnreadNotificationCount,
+  ProductReview, ProductSummary, Quote, Reservation, ReviewPage, ShippingAddress, StoreOrder, StoreReviewPage,
+  StoreSku, UnreadNotificationCount,
 } from '@/types'
 
 export const authApi = {
@@ -86,5 +87,51 @@ export const orderApi = {
   },
   async get(orderId: string) {
     return (await http.get<OrderDetail>(`/api/v1/orders/${orderId}`)).data
+  },
+}
+
+export const storeApi = {
+  async skus(productId: string) {
+    return (await http.get<StoreSku[]>(`/api/v1/store/products/${productId}/skus`)).data
+  },
+  async sku(skuId: string) {
+    return (await http.get<StoreSku>(`/api/v1/store/skus/${skuId}`)).data
+  },
+  async checkout(items: Array<{ skuId: string; quantity: number }>, address: ShippingAddress, idempotencyKey: string) {
+    return (await http.post<StoreOrder>('/api/v1/store/orders/checkout', { items, address }, {
+      headers: { 'Idempotency-Key': idempotencyKey },
+    })).data
+  },
+  async pay(orderId: string, idempotencyKey: string) {
+    return (await http.post<StoreOrder>(`/api/v1/store/orders/${orderId}/pay`, null, {
+      headers: { 'Idempotency-Key': idempotencyKey },
+    })).data
+  },
+  async cancel(orderId: string, idempotencyKey: string) {
+    return (await http.post<StoreOrder>(`/api/v1/store/orders/${orderId}/cancel`, null, {
+      headers: { 'Idempotency-Key': idempotencyKey },
+    })).data
+  },
+  async receive(orderId: string, idempotencyKey: string) {
+    return (await http.post<StoreOrder>(`/api/v1/store/orders/${orderId}/receive`, null, {
+      headers: { 'Idempotency-Key': idempotencyKey },
+    })).data
+  },
+  async listOrders(params: { status?: string; page: number; size: number }) {
+    return (await http.get<Page<StoreOrder>>('/api/v1/store/orders', { params })).data
+  },
+  async order(orderId: string) {
+    return (await http.get<StoreOrder>(`/api/v1/store/orders/${orderId}`)).data
+  },
+}
+
+export const storeReviewApi = {
+  async list(productId: string, params: { page: number; size: number }) {
+    return (await http.get<StoreReviewPage>(`/api/v1/store/products/${productId}/reviews`, { params })).data
+  },
+  async create(productId: string, request: CreateReviewRequest, idempotencyKey: string) {
+    return (await http.post<ProductReview>(`/api/v1/store/products/${productId}/reviews`, request, {
+      headers: { 'Idempotency-Key': idempotencyKey },
+    })).data
   },
 }

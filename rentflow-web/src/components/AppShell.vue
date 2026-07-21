@@ -61,12 +61,11 @@ async function handleNotificationClick(notification: Notification) {
   if (!await markNotificationRead(notification)) return
 
   if (
-    notification.type === 'ORDER_CONFIRMATION_REMINDER' &&
-    notification.aggregateType === 'ORDER' &&
+    (notification.aggregateType === 'ORDER' || notification.aggregateType === 'STORE_ORDER') &&
     notification.aggregateId !== null &&
     /^[0-9A-HJKMNP-TV-Z]{26}$/.test(notification.aggregateId)
   ) {
-    await router.push(`/orders/${notification.aggregateId}/confirm`)
+    await router.push(`/orders/${notification.aggregateId}`)
   }
 }
 
@@ -98,12 +97,12 @@ onBeforeUnmount(() => {
 <template>
   <div class="app-shell" :class="{ 'app-shell--guest': route.name === 'login' }">
     <header v-if="route.name !== 'login'" class="topbar">
-      <router-link to="/products" class="brand" aria-label="RentFlow 商品列表">
+      <router-link to="/products" class="brand" aria-label="RentFlow 数码潮玩商城">
         <span class="brand-mark">RF</span>
-        <span>RentFlow</span>
+        <span>RentFlow 潮玩</span>
       </router-link>
       <nav class="desktop-nav" aria-label="主导航">
-        <router-link to="/products"><el-icon><Goods /></el-icon>设备</router-link>
+        <router-link to="/products"><el-icon><Goods /></el-icon>商城</router-link>
         <router-link v-if="auth.isAuthenticated" to="/orders"><el-icon><List /></el-icon>订单</router-link>
         <router-link v-if="auth.isAuthenticated" to="/gearmate"><el-icon><ChatDotRound /></el-icon>GearMate</router-link>
       </nav>
@@ -138,7 +137,7 @@ onBeforeUnmount(() => {
       <router-view />
     </main>
     <nav v-if="route.name !== 'login' && auth.isAuthenticated" class="mobile-nav" aria-label="移动端导航">
-      <router-link to="/products"><el-icon><Goods /></el-icon><span>设备</span></router-link>
+      <router-link to="/products"><el-icon><Goods /></el-icon><span>商城</span></router-link>
       <router-link to="/orders"><el-icon><List /></el-icon><span>订单</span></router-link>
       <router-link to="/gearmate"><el-icon><ChatDotRound /></el-icon><span>GearMate</span></router-link>
     </nav>

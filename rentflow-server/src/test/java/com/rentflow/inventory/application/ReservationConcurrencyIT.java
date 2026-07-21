@@ -25,6 +25,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -139,7 +141,9 @@ class ReservationConcurrencyIT {
                     """, Integer.class, PRODUCT_ID))
                     .isEqualTo(HourlyCapacitySlots.covering(startAt, endAt).size());
 
-            assertThat(availability.search(PRODUCT_ID, startAt, endAt).availableCount()).isZero();
+            LocalDate startDate = startAt.atZone(ZoneOffset.UTC).toLocalDate();
+            LocalDate endDate = endAt.atZone(ZoneOffset.UTC).toLocalDate();
+            assertThat(availability.search(PRODUCT_ID, startDate, endDate).availableCount()).isZero();
             String winningReservationId = attempts.stream()
                     .filter(Attempt::success)
                     .map(Attempt::reservationId)
@@ -149,7 +153,7 @@ class ReservationConcurrencyIT {
                     "UPDATE inventory_reservations SET expires_at = CURRENT_TIMESTAMP(6) WHERE id = ?",
                     winningReservationId
             );
-            assertThat(availability.search(PRODUCT_ID, startAt, endAt).availableCount()).isEqualTo(1);
+            assertThat(availability.search(PRODUCT_ID, startDate, endDate).availableCount()).isEqualTo(1);
 
             currentUsers.set(new CurrentUser(
                     USER_THREE_ID, USER_THREE_ID, "USER", "Asia/Shanghai"
@@ -158,10 +162,10 @@ class ReservationConcurrencyIT {
                     "concurrent-key-3", new CreateReservationRequest(QUOTE_THREE_ID)
             );
             assertThat(replacement.equipmentDisplayCode()).isNull();
-            assertThat(availability.search(PRODUCT_ID, startAt, endAt).availableCount()).isZero();
+            assertThat(availability.search(PRODUCT_ID, startDate, endDate).availableCount()).isZero();
 
             reservations.release(replacement.reservationId());
-            assertThat(availability.search(PRODUCT_ID, startAt, endAt).availableCount()).isEqualTo(1);
+            assertThat(availability.search(PRODUCT_ID, startDate, endDate).availableCount()).isEqualTo(1);
         } finally {
             executor.shutdownNow();
             currentUsers.clear();

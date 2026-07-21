@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.rentflow.store.infrastructure.StoreMapper">
+    <sql id="skuColumns">
+        s.id, s.product_id, s.sku_code, s.sku_name, s.specs_json, s.sale_price,
+        s.on_hand_quantity, s.reserved_quantity, s.enabled, p.name AS product_name
+    </sql>
+    <sql id="orderColumns">
+        o.id, o.user_id, o.status, o.currency, o.item_amount, o.shipping_amount,
+        o.payable_amount, o.payment_expires_at, o.created_at, o.paid_at, o.shipped_at,
+        o.received_at, o.cancelled_at, o.closed_at, sh.carrier, sh.tracking_number
+    </sql>
+
+    <select id="listSkusByProduct" resultType="com.rentflow.store.infrastructure.StoreSkuRow">
+        SELECT <include refid="skuColumns"/> FROM product_skus s
+        JOIN products p ON p.id = s.product_id
+        WHERE s.product_id = #{productId} AND s.enabled = TRUE
+        ORDER BY s.sale_price, s.id
+    </select>
+    <select id="findSku" resultType="com.rentflow.store.infrastructure.StoreSkuRow">
+        SELECT <include refid="skuColumns"/> FROM product_skus s
+        JOIN products p ON p.id = s.product_id WHERE s.id = #{skuId}
+    </select>
+    <select id="lockSkus" resultType="com.rentflow.store.infrastructure.StoreSkuRow">
+        SELECT <include refid="skuColumns"/> FROM product_skus s
+        JOIN products p ON p.id = s.product_id
+        WHERE s.id IN
+        <foreach collection="skuIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+        ORDER BY s.id FOR UPDATE
+    </select>
+    <update id="reserveStock">
+        UPDATE product_skus SET reserved_quantity = reserved_quantity + #{quantity}, version = version + 1
+        WHERE id = #{skuId} AND enabled = TRUE AND on_hand_quantity - reserved_quantity &gt;= #{quantity}
+    </update>
+    <update id="sellReservedStock">
+        UPDATE product_skus SET on_hand_quantity = on_hand_quantity - #{quantity},
+            reserved_quantity = reserved_quantity - #{quantity}, version = version + 1
+        WHERE id = #{skuId} AND reserved_quantity &gt;= #{quantity} AND on_hand_quantity &gt;= #{quantity}
+    </update>
+    <update id="releaseReservedStock">
+        UPDATE product_skus SET reserved_quantity = reserved_quantity - #{quantity}, version = version + 1
+        WHERE id = #{skuId} AND reserved_quantity &gt;= #{quantity}
+    </update>
+
+    <insert id="insertOrder">
+        INSERT INTO commerce_orders (id, user_id, status, currency, item_amount, shipping_amount, payable_amount, payment_expires_at)
+        VALUES (#{id}, #{userId}, 'PENDING_PAYMENT', 'CNY', #{itemAmount}, 0, #{itemAmount}, #{paymentExpiresAt})
+    </insert>
+    <insert id="insertOrderItem">
+        INSERT INTO commerce_order_items (id, order_id, product_id, sku_id, product_name_snapshot,
+            sku_name_snapshot, specs_snapshot, unit_price, quantity, subtotal)
+        VALUES (#{id}, #{orderId}, #{sku.productId}, #{sku.id}, #{sku.productName}, #{sku.skuName},
+            CAST(#{sku.specsJson} AS JSON), #{sku.salePrice}, #{quantity}, #{subtotal})
+    </insert>
+    <insert id="insertAddress">
+        INSERT INTO order_address_snapshots (order_id, recipient_name, recipient_phone, province, city, district, address_line)
+        VALUES (#{orderId}, #{recipientName}, #{recipientPhone}, #{province}, #{city}, #{district}, #{addressLine})
+    </insert>
+    <insert id="insertHistory">
+        INSERT INTO commerce_order_history (id, order_id, from_status, to_status, reason)
+        VALUES (#{id}, #{orderId}, #{fromStatus}, #{toStatus}, #{reason})
+    </insert>
+    <insert id="insertMovement">
+        INSERT INTO stock_movements (id, operation_id, sku_id, order_id, order_item_id, movement_type,
+            quantity, on_hand_after, reserved_after, reason)
+        VALUES (#{id}, #{operationId}, #{skuId}, #{orderId}, #{orderItemId}, #{movementType},
+            #{quantity}, #{onHandAfter}, #{reservedAfter}, #{reason})
+    </insert>
+
+    <select id="findOrder" resultType="com.rentflow.store.infrastructure.StoreOrderRow">
+        SELECT <include refid="orderColumns"/> FROM commerce_orders o
+        LEFT JOIN shipments sh ON sh.order_id = o.id WHERE o.id = #{orderId}
+    </select>
+    <select id="lockOrder" resultType="com.rentflow.store.infrastructure.StoreOrderRow">
+        SELECT <include refid="orderColumns"/> FROM commerce_orders o
+        LEFT JOIN shipments sh ON sh.order_id = o.id WHERE o.id = #{orderId} FOR UPDATE
+    </select>
+    <select id="listOrderItems" resultType="com.rentflow.store.infrastructure.StoreOrderItemRow">
+        SELECT id, order_id, product_id, sku_id, product_name_snapshot, sku_name_snapshot,
+            specs_snapshot, unit_price, quantity, subtotal
+        FROM commerce_order_items WHERE order_id = #{orderId} ORDER BY id
+    </select>
+    <select id="listOrders" resultType="com.rentflow.store.infrastructure.StoreOrderRow">
+        SELECT <include refid="orderColumns"/> FROM commerce_orders o
+        LEFT JOIN shipments sh ON sh.order_id = o.id
+        WHERE o.user_id = #{userId}
+        <if test="status != null">AND o.status = #{status}</if>
+        ORDER BY o.created_at DESC, o.id DESC LIMIT #{size} OFFSET #{offset}
+    </select>
+    <select id="countOrders" resultType="long">
+        SELECT COUNT(*) FROM commerce_orders WHERE user_id = #{userId}
+        <if test="status != null">AND status = #{status}</if>
+    </select>
+    <select id="lockExpiredOrders" resultType="com.rentflow.store.infrastructure.ExpiredStoreOrder">
+        SELECT id, user_id FROM commerce_orders
+        WHERE status = 'PENDING_PAYMENT' AND payment_expires_at &lt;= CURRENT_TIMESTAMP(6)
+        ORDER BY payment_expires_at, id
+        LIMIT #{batchSize} FOR UPDATE SKIP LOCKED
+    </select>
+    <update id="markPaid">UPDATE commerce_orders SET status = 'PAID', paid_at = CURRENT_TIMESTAMP(6) WHERE id = #{orderId} AND status = 'PENDING_PAYMENT' AND payment_expires_at &gt; CURRENT_TIMESTAMP(6)</update>
+    <update id="markCancelled">UPDATE commerce_orders SET status = 'CANCELLED', cancelled_at = CURRENT_TIMESTAMP(6) WHERE id = #{orderId} AND status = 'PENDING_PAYMENT'</update>
+    <update id="markClosed">UPDATE commerce_orders SET status = 'CLOSED', closed_at = CURRENT_TIMESTAMP(6) WHERE id = #{orderId} AND status = 'PENDING_PAYMENT' AND payment_expires_at &lt;= CURRENT_TIMESTAMP(6)</update>
+    <update id="markShipped">UPDATE commerce_orders SET status = 'SHIPPED', shipped_at = CURRENT_TIMESTAMP(6) WHERE id = #{orderId} AND status = 'PAID'</update>
+    <update id="markReceived">UPDATE commerce_orders SET status = 'RECEIVED', received_at = CURRENT_TIMESTAMP(6) WHERE id = #{orderId} AND status = 'SHIPPED'</update>
+    <insert id="insertPayment">INSERT INTO payments (id, order_id, payment_no, provider, status, amount, paid_at) VALUES (#{id}, #{orderId}, #{paymentNo}, 'MOCK', 'SUCCEEDED', #{amount}, CURRENT_TIMESTAMP(6))</insert>
+    <insert id="insertShipment">INSERT INTO shipments (id, order_id, carrier, tracking_number, shipped_at) VALUES (#{id}, #{orderId}, #{carrier}, #{trackingNumber}, CURRENT_TIMESTAMP(6))</insert>
+
+    <select id="productExists" resultType="boolean">
+        SELECT EXISTS(SELECT 1 FROM products WHERE id = #{productId} AND enabled = TRUE)
+    </select>
+    <select id="lockEarliestReviewableItem" resultType="com.rentflow.store.infrastructure.ReviewableStoreItem">
+        SELECT oi.id AS order_item_id, oi.order_id, oi.product_id, o.user_id
+        FROM commerce_order_items oi
+        JOIN commerce_orders o ON o.id = oi.order_id
+        LEFT JOIN commerce_product_reviews r ON r.order_item_id = oi.id
+        WHERE o.user_id = #{userId} AND oi.product_id = #{productId}
+          AND o.status = 'RECEIVED' AND r.id IS NULL
+        ORDER BY o.received_at, oi.id
+        LIMIT 1 FOR UPDATE
+    </select>
+    <insert id="insertStoreReview">
+        INSERT INTO commerce_product_reviews (id, product_id, order_item_id, user_id, rating, content)
+        VALUES (#{id}, #{productId}, #{orderItemId}, #{userId}, #{rating}, #{content})
+    </insert>
+    <select id="findStoreReview" resultType="com.rentflow.store.infrastructure.StoreReviewRow">
+        SELECT r.id, r.product_id, r.order_item_id, r.user_id, r.rating, r.content,
+               u.nickname AS reviewer_name, r.created_at
+        FROM commerce_product_reviews r JOIN users u ON u.id = r.user_id
+        WHERE r.id = #{reviewId}
+    </select>
+    <select id="listStoreReviews" resultType="com.rentflow.store.infrastructure.StoreReviewRow">
+        SELECT r.id, r.product_id, r.order_item_id, r.user_id, r.rating, r.content,
+               u.nickname AS reviewer_name, r.created_at
+        FROM commerce_product_reviews r JOIN users u ON u.id = r.user_id
+        WHERE r.product_id = #{productId}
+        ORDER BY r.created_at DESC, r.id DESC LIMIT #{size} OFFSET #{offset}
+    </select>
+    <select id="countStoreReviews" resultType="long">
+        SELECT COUNT(*) FROM commerce_product_reviews WHERE product_id = #{productId}
+    </select>
+    <select id="averageStoreRating" resultType="double">
+        SELECT AVG(rating) FROM commerce_product_reviews WHERE product_id = #{productId}
+    </select>
+
+    <insert id="insertIdempotency">INSERT IGNORE INTO store_idempotency (id, user_id, endpoint, idempotency_key, request_digest, status) VALUES (#{id}, #{userId}, #{endpoint}, #{idempotencyKey}, #{requestDigest}, 'PROCESSING')</insert>
+    <select id="lockIdempotency" resultType="com.rentflow.store.infrastructure.StoreIdempotencyRow">SELECT id, request_digest, status, response_http_status, response_body, resource_id FROM store_idempotency WHERE user_id = #{userId} AND endpoint = #{endpoint} AND idempotency_key = #{idempotencyKey} FOR UPDATE</select>
+    <update id="completeIdempotency">UPDATE store_idempotency SET status = 'COMPLETED', response_http_status = #{httpStatus}, response_body = CAST(#{responseBody} AS JSON), resource_id = #{resourceId}, completed_at = CURRENT_TIMESTAMP(6) WHERE id = #{id} AND status = 'PROCESSING'</update>
+    <update id="failIdempotency">UPDATE store_idempotency SET status = 'FAILED', response_http_status = #{httpStatus}, response_body = CAST(#{responseBody} AS JSON), completed_at = CURRENT_TIMESTAMP(6) WHERE id = #{id} AND status = 'PROCESSING'</update>
+</mapper>

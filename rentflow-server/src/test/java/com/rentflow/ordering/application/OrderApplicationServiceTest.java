@@ -21,11 +21,13 @@ import com.rentflow.ordering.infrastructure.OrderRow;
 import com.rentflow.pricing.api.PriceSnapshotView;
 import com.rentflow.shared.idempotency.IdempotencyProperties;
 import com.rentflow.shared.idempotency.MySqlIdempotencyMutex;
+import com.rentflow.shared.time.RentalCalendar;
 import com.rentflow.shared.web.BusinessException;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -47,8 +49,8 @@ class OrderApplicationServiceTest {
     private static final String ORDER_ID = "01J00000000000000000040001";
     private static final String KEY = "order-attempt-key-01";
     private static final Instant NOW = Instant.parse("2026-07-14T00:00:00Z");
-    private static final Instant START = NOW.plusSeconds(86_400);
-    private static final Instant END = START.plusSeconds(86_400);
+    private static final LocalDate START = LocalDate.parse("2026-07-15");
+    private static final LocalDate END = LocalDate.parse("2026-07-16");
     private static final Instant EXPIRES = NOW.plusSeconds(900);
 
     @Test
@@ -170,7 +172,7 @@ class OrderApplicationServiceTest {
     private OrderRow receivedOrderCandidate(String status, Instant receivedAt) {
         return new OrderRow(
                 ORDER_ID, USER_ID, PRODUCT_ID, EQUIPMENT_ID, RESERVATION_ID,
-                status, status, NOW, END, EXPIRES,
+                status, status, LocalDate.parse("2026-07-14"), END, EXPIRES,
                 "Sony A7M4", "ILCE-7M4", "RF-A7M4-0001", "CNY", 1,
                 "CEIL_24H_FIXED_DEPOSIT", 1, new BigDecimal("200.00"),
                 new BigDecimal("200.00"), new BigDecimal("3000.00"), new BigDecimal("3200.00"),
@@ -221,6 +223,7 @@ class OrderApplicationServiceTest {
                 orderMapper,
                 audit,
                 events,
+                new RentalCalendar(),
                 objectMapper,
                 mutex,
                 new IdempotencyProperties(2, 1)
@@ -307,7 +310,7 @@ class OrderApplicationServiceTest {
         OrderRow row = orderRow("CONFIRMED", "CONFIRMED");
         return new OrderRow(
                 row.id(), row.userId(), row.productId(), EQUIPMENT_ID, row.sourceReservationId(),
-                row.status(), row.effectiveStatus(), row.startAt(), row.endAt(), row.expiresAt(),
+                row.status(), row.effectiveStatus(), row.startDate(), row.endDate(), row.expiresAt(),
                 row.productName(), row.productModel(), "RF-A7M4-0001", row.currency(),
                 row.pricingVersion(), row.pricingRule(), row.billingDays(), row.dailyRate(),
                 row.rentalAmount(), row.depositAmount(), row.totalAmount(), row.roundingMode(),

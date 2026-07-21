@@ -5,24 +5,18 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import java.math.BigDecimal;
-import java.time.Instant;
+import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class PricingCalculatorTest {
-    private static final Instant START = Instant.parse("2026-07-14T00:00:00Z");
+    private static final LocalDate START = LocalDate.parse("2026-07-15");
 
     @ParameterizedTest
-    @CsvSource({
-            "1,1,130.01",
-            "23,1,130.01",
-            "24,1,130.01",
-            "25,2,230.02",
-            "48,2,230.02"
-    })
-    void roundsDurationUpToWholeBillingDays(int hours, int expectedDays, String expectedTotal) {
+    @CsvSource({"0,1,130.01", "1,2,230.02", "29,30,3030.30"})
+    void billsInclusiveCalendarDays(int endOffset, int expectedDays, String expectedTotal) {
         PriceSnapshot snapshot = PricingCalculator.calculate(
-                new RentalPeriod(START, START.plusSeconds(hours * 3_600L)),
+                new RentalPeriod(START, START.plusDays(endOffset)),
                 new BigDecimal("100.005"),
                 new BigDecimal("30.004"),
                 1

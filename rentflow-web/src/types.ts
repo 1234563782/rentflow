@@ -70,6 +70,63 @@ export interface ReviewPage extends Page<ProductReview> {
   statistics: ReviewStatistics
 }
 
+export interface StoreSku {
+  skuId: string
+  productId: string
+  skuCode: string
+  skuName: string
+  specs: Record<string, unknown>
+  salePrice: string
+  availableQuantity: number
+  enabled: boolean
+}
+
+export type StoreOrderStatus = 'PENDING_PAYMENT' | 'PAID' | 'SHIPPED' | 'RECEIVED' | 'CANCELLED' | 'CLOSED'
+
+export interface StoreOrderItem {
+  orderItemId: string
+  productId: string
+  skuId: string
+  productName: string
+  skuName: string
+  specs: Record<string, unknown>
+  unitPrice: string
+  quantity: number
+  subtotal: string
+}
+
+export interface StoreOrder {
+  orderId: string
+  status: StoreOrderStatus
+  currency: 'CNY'
+  itemAmount: string
+  shippingAmount: string
+  payableAmount: string
+  paymentExpiresAt: string
+  createdAt: string
+  paidAt: string | null
+  shippedAt: string | null
+  receivedAt: string | null
+  cancelledAt: string | null
+  closedAt: string | null
+  carrier: string | null
+  trackingNumber: string | null
+  items: StoreOrderItem[]
+}
+
+export interface ShippingAddress {
+  recipientName: string
+  recipientPhone: string
+  province: string
+  city: string
+  district: string
+  addressLine: string
+}
+
+export interface StoreReviewPage extends Page<ProductReview> {
+  statistics: { averageRating: number; reviewCount: number }
+}
+
 export interface Notification {
   id: string
   type: string
@@ -188,8 +245,11 @@ export interface RecommendationCard {
   name: string
   brand: string
   model: string
-  dailyRate: string
-  fixedDeposit: string
+  salePrice: string | null
+  availableQuantity: number | null
+  storeSkus: StoreSku[]
+  dailyRate?: string | null
+  fixedDeposit?: string | null
   availableCount: number | null
   useCases: ProductUseCase[]
 }
@@ -206,12 +266,13 @@ export interface FollowUpQuestion {
   options: FollowUpOption[]
 }
 export interface RecommendationPresentation {
-  mode: 'explore' | 'recommend'
+  mode: 'explore' | 'recommend' | 'purchase'
   intro?: string
   sections: RecommendationSection[]
   rentalPeriod: RentalPeriodValue | null
   followUp: FollowUpQuestion | null
   closing?: string | null
+  purchaseQuantity?: number | null
 }
 export interface RentalPeriodValue { startDate: string; endDate: string }
 export interface MessageRun {

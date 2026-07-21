@@ -43,14 +43,14 @@ async function submit() {
       <div class="login-brand-copy">
         <span class="brand-mark brand-mark--large">RF</span>
         <h1>RentFlow</h1>
-        <p>需要的时候，设备正好在。</p>
+        <p>数码好物，随心选购。</p>
       </div>
     </div>
     <div class="login-panel">
       <div class="login-form-wrap">
-        <span class="login-kicker">设备租赁工作台</span>
+        <span class="login-kicker">数码潮玩商城</span>
         <h2>登录账户</h2>
-        <p class="muted">查看库存、锁定报价并管理你的订单。</p>
+        <p class="muted">浏览数码好物，管理订单、支付与物流。</p>
         <el-form ref="formRef" :model="form" :rules="rules" label-position="top" size="large" @submit.prevent="submit">
           <el-form-item label="账号" prop="username">
             <el-input v-model="form.username" :prefix-icon="User" autocomplete="username" placeholder="请输入账号" />

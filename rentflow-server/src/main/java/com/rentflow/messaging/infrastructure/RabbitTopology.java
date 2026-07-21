@@ -9,6 +9,7 @@ import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -19,6 +20,8 @@ public class RabbitTopology {
     public static final String DEAD_LETTER_EXCHANGE = "rentflow.dlx";
     public static final String ORDER_QUEUE = "rentflow.order-notifications";
     public static final String ORDER_DEAD_QUEUE = "rentflow.order-notifications.dead";
+    public static final String STORE_ORDER_QUEUE = "rentflow.store-order-events";
+    public static final String STORE_ORDER_DEAD_QUEUE = "rentflow.store-order-events.dead";
 
     @Bean
     TopicExchange domainExchange() {
@@ -44,13 +47,48 @@ public class RabbitTopology {
     }
 
     @Bean
-    Binding orderBinding(Queue orderQueue, TopicExchange domainExchange) {
+    Queue storeOrderQueue() {
+        return QueueBuilder.durable(STORE_ORDER_QUEUE)
+                .deadLetterExchange(DEAD_LETTER_EXCHANGE)
+                .deadLetterRoutingKey("store.order.dead")
+                .build();
+    }
+
+    @Bean
+    Queue storeOrderDeadQueue() {
+        return QueueBuilder.durable(STORE_ORDER_DEAD_QUEUE).build();
+    }
+
+    @Bean
+    Binding orderBinding(
+            @Qualifier("orderQueue") Queue orderQueue,
+            @Qualifier("domainExchange") TopicExchange domainExchange
+    ) {
         return BindingBuilder.bind(orderQueue).to(domainExchange).with("order.#");
     }
 
     @Bean
-    Binding orderDeadBinding(Queue orderDeadQueue, TopicExchange deadLetterExchange) {
+    Binding orderDeadBinding(
+            @Qualifier("orderDeadQueue") Queue orderDeadQueue,
+            @Qualifier("deadLetterExchange") TopicExchange deadLetterExchange
+    ) {
         return BindingBuilder.bind(orderDeadQueue).to(deadLetterExchange).with("order.dead");
+    }
+
+    @Bean
+    Binding storeOrderBinding(
+            @Qualifier("storeOrderQueue") Queue storeOrderQueue,
+            @Qualifier("domainExchange") TopicExchange domainExchange
+    ) {
+        return BindingBuilder.bind(storeOrderQueue).to(domainExchange).with("store.order.#");
+    }
+
+    @Bean
+    Binding storeOrderDeadBinding(
+            @Qualifier("storeOrderDeadQueue") Queue storeOrderDeadQueue,
+            @Qualifier("deadLetterExchange") TopicExchange deadLetterExchange
+    ) {
+        return BindingBuilder.bind(storeOrderDeadQueue).to(deadLetterExchange).with("store.order.dead");
     }
 
     @Bean
