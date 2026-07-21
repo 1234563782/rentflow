@@ -39,21 +39,6 @@ rentflow:
     issuer: rentflow-server
     audience: rentflow-platform
     access-token-ttl: PT30M
-  reservation:
-    ttl-seconds: ${RENTFLOW_RESERVATION_TTL_SECONDS:900}
-    max-active-per-user: ${RENTFLOW_MAX_ACTIVE_RESERVATIONS:3}
-    cleanup-batch-size: ${RENTFLOW_RESERVATION_CLEANUP_BATCH_SIZE:100}
-    cleanup-fixed-delay-millis: ${RENTFLOW_RESERVATION_CLEANUP_DELAY_MILLIS:60000}
-  quote:
-    ttl-seconds: ${RENTFLOW_QUOTE_TTL_SECONDS:300}
-  rental:
-    business-zone: ${RENTFLOW_RENTAL_BUSINESS_ZONE:Asia/Shanghai}
-  order:
-    cleanup-batch-size: ${RENTFLOW_ORDER_CLEANUP_BATCH_SIZE:100}
-    cleanup-fixed-delay-millis: ${RENTFLOW_ORDER_CLEANUP_DELAY_MILLIS:60000}
-    confirmation-reminder-window-millis: ${RENTFLOW_ORDER_CONFIRMATION_REMINDER_WINDOW_MILLIS:300000}
-    confirmation-reminder-batch-size: ${RENTFLOW_ORDER_CONFIRMATION_REMINDER_BATCH_SIZE:100}
-    confirmation-reminder-fixed-delay-millis: ${RENTFLOW_ORDER_CONFIRMATION_REMINDER_DELAY_MILLIS:60000}
   store:
     payment-ttl-minutes: ${RENTFLOW_STORE_PAYMENT_TTL_MINUTES:15}
     cleanup-batch-size: ${RENTFLOW_STORE_CLEANUP_BATCH_SIZE:100}

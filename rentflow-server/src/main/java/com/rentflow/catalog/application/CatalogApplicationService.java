@@ -4,9 +4,7 @@ import com.rentflow.catalog.api.CatalogQuery;
 import com.rentflow.catalog.api.CategoryView;
 import com.rentflow.catalog.api.ProductDetail;
 import com.rentflow.catalog.api.ProductPage;
-import com.rentflow.catalog.api.ProductPricing;
 import com.rentflow.catalog.api.ProductSummary;
-import com.rentflow.catalog.api.ProductSnapshot;
 import com.rentflow.catalog.api.ProductUseCase;
 import com.rentflow.catalog.api.UseCaseView;
 import com.rentflow.catalog.infrastructure.CatalogMapper;
@@ -20,7 +18,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -69,7 +66,7 @@ public class CatalogApplicationService implements CatalogQuery {
             String model,
             String useCaseId,
             String categoryId,
-            BigDecimal maxDailyRate,
+            BigDecimal maxPrice,
             PageQuery pageQuery
     ) {
         String normalizedKeyword = normalizeKeyword(keyword);
@@ -78,7 +75,7 @@ public class CatalogApplicationService implements CatalogQuery {
         String normalizedModel = normalizeExactFilter("model", model);
         String normalizedUseCaseId = useCaseId == null ? null : Ulid.requireValid(useCaseId);
         String normalizedCategoryId = categoryId == null ? null : Ulid.requireValid(categoryId);
-        BigDecimal normalizedMaxDailyRate = normalizeMaxDailyRate(maxDailyRate);
+        BigDecimal normalizedMaxPrice = normalizeMaxPrice(maxPrice);
         List<ProductRow> rows = catalogMapper.searchProducts(
                         normalizedKeyword,
                         normalizedEquipmentRole,
@@ -86,7 +83,7 @@ public class CatalogApplicationService implements CatalogQuery {
                         normalizedModel,
                         normalizedUseCaseId,
                         normalizedCategoryId,
-                        normalizedMaxDailyRate,
+                        normalizedMaxPrice,
                         pageQuery.offset(),
                         pageQuery.size()
                 );
@@ -101,7 +98,7 @@ public class CatalogApplicationService implements CatalogQuery {
                 normalizedModel,
                 normalizedUseCaseId,
                 normalizedCategoryId,
-                normalizedMaxDailyRate
+                normalizedMaxPrice
         );
         int totalPages = total == 0 ? 0 : Math.toIntExact((total + pageQuery.size() - 1) / pageQuery.size());
         return new ProductPage(items, pageQuery.page(), pageQuery.size(), total, totalPages);
@@ -119,36 +116,8 @@ public class CatalogApplicationService implements CatalogQuery {
                 row.brand(),
                 row.model(),
                 row.description(),
-                money(row.dailyRate()),
-                money(row.fixedDeposit()),
                 productUseCases(List.of(row)).getOrDefault(row.id(), List.of())
         );
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public ProductPricing requireProductPricing(String productId) {
-        ProductRow row = find(productId);
-        return new ProductPricing(
-                row.id(),
-                row.name(),
-                row.model(),
-                row.dailyRate(),
-                row.fixedDeposit(),
-                row.pricingVersion()
-        );
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public ProductSnapshot requireProductSnapshot(String productId) {
-        String validId = Ulid.requireValid(productId);
-        ProductRow row = catalogMapper.findProduct(validId).orElseThrow(() -> new BusinessException(
-                "PRODUCT_NOT_FOUND",
-                "Product was not found",
-                HttpStatus.NOT_FOUND
-        ));
-        return new ProductSnapshot(row.id(), row.name(), row.model());
     }
 
     private ProductRow find(String productId) {
@@ -168,9 +137,6 @@ public class CatalogApplicationService implements CatalogQuery {
                 row.name(),
                 row.brand(),
                 row.model(),
-                money(row.dailyRate()),
-                money(row.fixedDeposit()),
-                null,
                 useCases
         );
     }
@@ -192,10 +158,6 @@ public class CatalogApplicationService implements CatalogQuery {
                 ));
     }
 
-    private String money(java.math.BigDecimal value) {
-        return value.setScale(2, RoundingMode.HALF_UP).toPlainString();
-    }
-
     private String normalizeKeyword(String keyword) {
         if (keyword == null || keyword.isBlank()) {
             return null;
@@ -207,14 +169,14 @@ public class CatalogApplicationService implements CatalogQuery {
         return normalized;
     }
 
-    private BigDecimal normalizeMaxDailyRate(BigDecimal maxDailyRate) {
-        if (maxDailyRate == null) {
+    private BigDecimal normalizeMaxPrice(BigDecimal maxPrice) {
+        if (maxPrice == null) {
             return null;
         }
-        if (maxDailyRate.signum() <= 0) {
-            throw new IllegalArgumentException("maxDailyRate must be greater than zero");
+        if (maxPrice.signum() <= 0) {
+            throw new IllegalArgumentException("maxPrice must be greater than zero");
         }
-        return maxDailyRate;
+        return maxPrice;
     }
 
     private String normalizeEquipmentRole(String equipmentRole) {

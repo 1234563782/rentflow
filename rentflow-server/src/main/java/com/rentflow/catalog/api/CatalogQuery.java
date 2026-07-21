@@ -17,13 +17,9 @@ public interface CatalogQuery {
             String model,
             String useCaseId,
             String categoryId,
-            BigDecimal maxDailyRate,
+            BigDecimal maxPrice,
             PageQuery pageQuery
     );
 
     ProductDetail requireProduct(String productId);
-
-    ProductPricing requireProductPricing(String productId);
-
-    ProductSnapshot requireProductSnapshot(String productId);
 }

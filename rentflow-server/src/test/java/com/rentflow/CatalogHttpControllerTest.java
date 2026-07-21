@@ -2,7 +2,6 @@ package com.rentflow;
 
 import com.rentflow.catalog.api.CatalogQuery;
 import com.rentflow.catalog.api.ProductPage;
-import com.rentflow.inventory.api.AvailabilityQuery;
 import com.rentflow.shared.pagination.PageQuery;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
@@ -20,13 +19,12 @@ class CatalogHttpControllerTest {
     @Test
     void bindsBrandAndModelSearchParameters() throws Exception {
         CatalogQuery catalogQuery = mock(CatalogQuery.class);
-        AvailabilityQuery availabilityQuery = mock(AvailabilityQuery.class);
         when(catalogQuery.searchProducts(
                 null, "laptop", "Apple", "MacBook Pro 14", null, null, null,
                 PageQuery.firstPage()
         )).thenReturn(new ProductPage(List.of(), 0, 20, 0, 0));
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
-                new CatalogHttpController(catalogQuery, availabilityQuery)
+                new CatalogHttpController(catalogQuery)
         ).build();
 
         mockMvc.perform(get("/api/v1/products")
@@ -44,13 +42,12 @@ class CatalogHttpControllerTest {
     @Test
     void bindsUseCaseSearchParameter() throws Exception {
         CatalogQuery catalogQuery = mock(CatalogQuery.class);
-        AvailabilityQuery availabilityQuery = mock(AvailabilityQuery.class);
         String useCaseId = "01J00000000000000000000202";
         when(catalogQuery.searchProducts(
                 null, null, null, null, useCaseId, null, null, PageQuery.firstPage()
         )).thenReturn(new ProductPage(List.of(), 0, 20, 0, 0));
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
-                new CatalogHttpController(catalogQuery, availabilityQuery)
+                new CatalogHttpController(catalogQuery)
         ).build();
 
         mockMvc.perform(get("/api/v1/products").param("useCaseId", useCaseId))
@@ -58,6 +55,24 @@ class CatalogHttpControllerTest {
 
         verify(catalogQuery).searchProducts(
                 null, null, null, null, useCaseId, null, null, PageQuery.firstPage()
+        );
+    }
+
+    @Test
+    void bindsMaximumPurchasePrice() throws Exception {
+        CatalogQuery catalogQuery = mock(CatalogQuery.class);
+        when(catalogQuery.searchProducts(
+                null, null, null, null, null, null, new java.math.BigDecimal("5000"),
+                PageQuery.firstPage()
+        )).thenReturn(new ProductPage(List.of(), 0, 20, 0, 0));
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new CatalogHttpController(catalogQuery)).build();
+
+        mockMvc.perform(get("/api/v1/products").param("maxPrice", "5000"))
+                .andExpect(status().isOk());
+
+        verify(catalogQuery).searchProducts(
+                null, null, null, null, null, null, new java.math.BigDecimal("5000"),
+                PageQuery.firstPage()
         );
     }
 }

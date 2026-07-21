@@ -188,8 +188,8 @@ onBeforeUnmount(() => controller?.abort())
                       <span>{{ product.brand }} · {{ product.model }}</span>
                       <div v-if="product.salePrice" class="recommendation-price">¥{{ product.salePrice }}<small> 起</small></div>
                       <span v-else>查看可售规格</span>
-                      <span v-if="product.availableQuantity !== null" class="availability-label">库存 {{ product.availableQuantity }} 件</span>
-                      <span v-else class="availability-label is-unchecked">库存待同步</span>
+                      <span v-if="product.availableQuantity !== null" class="stock-label">库存 {{ product.availableQuantity }} 件</span>
+                      <span v-else class="stock-label is-unchecked">库存待同步</span>
                     </div>
                   </button>
                 </div>

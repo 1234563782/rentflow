@@ -240,7 +240,7 @@ public class StoreApplicationService {
             String itemId = Ulid.next();
             BigDecimal subtotal = sku.salePrice().multiply(BigDecimal.valueOf(quantity));
             requireOne(mapper.insertOrderItem(itemId, orderId, sku, quantity, subtotal), "Store item insert");
-            requireOne(mapper.reserveStock(sku.id(), quantity), "Store stock reservation");
+            requireOne(mapper.holdStock(sku.id(), quantity), "Store stock hold");
             requireOne(mapper.insertMovement(Ulid.next(), orderId + ":RESERVE", sku.id(), orderId, itemId,
                     "RESERVE", quantity, sku.onHandQuantity(), sku.reservedQuantity() + quantity,
                     "CHECKOUT"), "Store reserve movement insert");

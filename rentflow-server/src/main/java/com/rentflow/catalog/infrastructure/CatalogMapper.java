@@ -40,7 +40,7 @@ public interface CatalogMapper {
             @Param("model") String model,
             @Param("useCaseId") String useCaseId,
             @Param("categoryId") String categoryId,
-            @Param("maxDailyRate") BigDecimal maxDailyRate,
+            @Param("maxPrice") BigDecimal maxPrice,
             @Param("offset") long offset,
             @Param("size") int size
     );
@@ -52,24 +52,16 @@ public interface CatalogMapper {
             @Param("model") String model,
             @Param("useCaseId") String useCaseId,
             @Param("categoryId") String categoryId,
-            @Param("maxDailyRate") BigDecimal maxDailyRate
+            @Param("maxPrice") BigDecimal maxPrice
     );
 
     List<ProductUseCaseRow> listProductUseCases(@Param("productIds") List<String> productIds);
 
     @Select("""
-            SELECT id, category_id, equipment_role, name, brand, model, description,
-                   daily_rate, fixed_deposit, pricing_version
+            SELECT id, category_id, equipment_role, name, brand, model, description
             FROM products
             WHERE id = #{productId} AND enabled = TRUE
             """)
     Optional<ProductRow> findEnabledProduct(@Param("productId") String productId);
 
-    @Select("""
-            SELECT id, category_id, equipment_role, name, brand, model, description,
-                   daily_rate, fixed_deposit, pricing_version
-            FROM products
-            WHERE id = #{productId}
-            """)
-    Optional<ProductRow> findProduct(@Param("productId") String productId);
 }

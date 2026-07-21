@@ -1,7 +1,7 @@
 import { http } from './http'
 import type {
-  Availability, Category, CreateReviewRequest, LoginResponse, Notification, Order, OrderDetail, Page, ProductDetail,
-  ProductReview, ProductSummary, Quote, Reservation, ReviewPage, ShippingAddress, StoreOrder, StoreReviewPage,
+  Category, CreateReviewRequest, LoginResponse, Notification, Page, ProductDetail,
+  ProductReview, ProductSummary, ShippingAddress, StoreOrder, StoreReviewPage,
   StoreSku, UnreadNotificationCount,
 } from '@/types'
 
@@ -21,20 +21,6 @@ export const catalogApi = {
   async product(productId: string) {
     return (await http.get<ProductDetail>(`/api/v1/products/${productId}`)).data
   },
-  async availability(productId: string, startDate: string, endDate: string) {
-    return (await http.post<Availability>('/api/v1/availability/search', { productId, startDate, endDate })).data
-  },
-}
-
-export const reviewApi = {
-  async list(productId: string, params: { page: number; size: number }) {
-    return (await http.get<ReviewPage>(`/api/v1/products/${productId}/reviews`, { params })).data
-  },
-  async create(productId: string, request: CreateReviewRequest, idempotencyKey: string) {
-    return (await http.post<ProductReview>(`/api/v1/products/${productId}/reviews`, request, {
-      headers: { 'Idempotency-Key': idempotencyKey },
-    })).data
-  },
 }
 
 export const notificationApi = {
@@ -46,47 +32,6 @@ export const notificationApi = {
   },
   async markRead(notificationId: string) {
     await http.post(`/api/v1/notifications/${notificationId}/read`)
-  },
-}
-
-export const quoteApi = {
-  async create(productId: string, startDate: string, endDate: string) {
-    return (await http.post<Quote>('/api/v1/quotes', { productId, startDate, endDate })).data
-  },
-}
-
-export const reservationApi = {
-  async get(reservationId: string) {
-    return (await http.get<Reservation>(`/api/v1/reservations/${reservationId}`)).data
-  },
-}
-
-export const orderApi = {
-  async create(quoteId: string, idempotencyKey: string) {
-    return (await http.post<Order>('/api/v1/orders', { quoteId }, {
-      headers: { 'Idempotency-Key': idempotencyKey },
-    })).data
-  },
-  async confirm(orderId: string, idempotencyKey: string) {
-    return (await http.post<Order>(`/api/v1/orders/${orderId}/confirm`, null, {
-      headers: { 'Idempotency-Key': idempotencyKey },
-    })).data
-  },
-  async cancel(orderId: string, idempotencyKey: string) {
-    return (await http.post<Order>(`/api/v1/orders/${orderId}/cancel`, null, {
-      headers: { 'Idempotency-Key': idempotencyKey },
-    })).data
-  },
-  async receive(orderId: string, idempotencyKey: string) {
-    return (await http.post<Order>(`/api/v1/orders/${orderId}/receive`, null, {
-      headers: { 'Idempotency-Key': idempotencyKey },
-    })).data
-  },
-  async list(params: { status?: string; page: number; size: number }) {
-    return (await http.get<Page<Order>>('/api/v1/orders', { params })).data
-  },
-  async get(orderId: string) {
-    return (await http.get<OrderDetail>(`/api/v1/orders/${orderId}`)).data
   },
 }
 

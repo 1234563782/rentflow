@@ -13,7 +13,7 @@ public interface StoreMapper {
     List<StoreSkuRow> listSkusByProduct(@Param("productId") String productId);
     Optional<StoreSkuRow> findSku(@Param("skuId") String skuId);
     List<StoreSkuRow> lockSkus(@Param("skuIds") List<String> skuIds);
-    int reserveStock(@Param("skuId") String skuId, @Param("quantity") int quantity);
+    int holdStock(@Param("skuId") String skuId, @Param("quantity") int quantity);
     int sellReservedStock(@Param("skuId") String skuId, @Param("quantity") int quantity);
     int releaseReservedStock(@Param("skuId") String skuId, @Param("quantity") int quantity);
 

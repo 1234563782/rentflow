@@ -25,23 +25,6 @@ public class NotificationApplicationService implements NotificationWriter {
 
     @Override
     @Transactional
-    public void createOrderConfirmationReminder(
-            String userId, String orderId, String expiresAt, String aggregateType, String aggregateId
-    ) {
-        notificationMapper.insert(
-                com.rentflow.shared.id.Ulid.next(),
-                userId,
-                "ORDER_CONFIRMATION_REMINDER",
-                "order-confirmation-reminder:" + orderId,
-                "订单即将过期",
-                "订单确认时间即将结束，请尽快确认。",
-                aggregateType,
-                aggregateId
-        );
-    }
-
-    @Override
-    @Transactional
     public void createStoreOrderNotification(
             String userId,
             String orderId,

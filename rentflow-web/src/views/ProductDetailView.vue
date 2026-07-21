@@ -133,7 +133,7 @@ onMounted(() => { void load(); void loadReviews() })
           </section>
         </div>
 
-        <aside class="booking-tool">
+        <aside class="purchase-tool">
           <div class="tool-heading"><span>选择规格</span><el-icon><Goods /></el-icon></div>
           <div v-if="skus.length" class="sku-options">
             <button v-for="sku in skus" :key="sku.skuId" type="button" class="sku-option" :class="{ active: selectedSkuId === sku.skuId }" :disabled="!sku.enabled" @click="selectedSkuId = sku.skuId">
@@ -147,7 +147,7 @@ onMounted(() => { void load(); void loadReviews() })
             <div><span>数量</span><el-input-number v-model="quantity" :min="1" :max="Math.max(1, selectedSku.availableQuantity)" /></div>
           </div>
           <el-button class="full-button" type="primary" :disabled="!canBuy" @click="buyNow">{{ selectedSku?.availableQuantity ? '立即购买' : '暂时缺货' }}</el-button>
-          <p class="quote-note">提交订单后保留 15 分钟支付时间，超时自动释放库存。</p>
+          <p class="purchase-note">提交订单后保留 15 分钟支付时间，超时自动释放库存。</p>
         </aside>
       </div>
     </template>

@@ -10,8 +10,6 @@ public record ProductDetail(
         String brand,
         String model,
         String description,
-        String dailyRate,
-        String fixedDeposit,
         List<ProductUseCase> useCases
 ) {
     public ProductDetail {

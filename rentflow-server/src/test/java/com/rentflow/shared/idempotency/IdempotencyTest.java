@@ -12,10 +12,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class IdempotencyTest {
     @Test
     void validatesPrintableAsciiKey() {
-        assertThat(new IdempotencyKey("reservation-0001").value()).isEqualTo("reservation-0001");
+        assertThat(new IdempotencyKey("store-order-0001").value()).isEqualTo("store-order-0001");
         assertThatThrownBy(() -> new IdempotencyKey("too-short"))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new IdempotencyKey("reservation-key-\n"))
+        assertThatThrownBy(() -> new IdempotencyKey("store-order-key-\n"))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

@@ -28,12 +28,11 @@ export interface Category {
 export interface ProductSummary {
   productId: string
   categoryId: string
+  equipmentRole: string
   name: string
   brand: string
   model: string
-  dailyRate: string
-  fixedDeposit: string
-  availableCount?: number
+  useCases: ProductUseCase[]
 }
 
 export interface ProductDetail extends ProductSummary {
@@ -64,10 +63,6 @@ export interface Page<T> {
   size: number
   totalElements: number
   totalPages: number
-}
-
-export interface ReviewPage extends Page<ProductReview> {
-  statistics: ReviewStatistics
 }
 
 export interface StoreSku {
@@ -142,84 +137,6 @@ export interface UnreadNotificationCount {
   count: number
 }
 
-export interface Availability {
-  productId: string
-  startDate: string
-  endDate: string
-  available: boolean
-  availableCount: number
-  checkedAt: string
-}
-
-export interface PriceSnapshot {
-  currency: 'CNY'
-  pricingVersion: number
-  pricingRule: string
-  billingDays: number
-  dailyRate: string
-  rentalAmount: string
-  depositAmount: string
-  totalAmount: string
-  roundingMode: 'HALF_UP'
-}
-
-export interface Quote {
-  quoteId: string
-  productId: string
-  startDate: string
-  endDate: string
-  expiresAt: string
-  priceSnapshot: PriceSnapshot
-}
-
-export type ReservationStatus = 'ACTIVE' | 'CONSUMED' | 'RELEASED' | 'EXPIRED'
-
-export interface Reservation {
-  reservationId: string
-  sourceQuoteId: string
-  productId: string
-  equipmentDisplayCode: string | null
-  startDate: string
-  endDate: string
-  expiresAt: string
-  status: ReservationStatus
-  effectiveStatus: ReservationStatus
-  priceSnapshot: PriceSnapshot
-}
-
-export type OrderStatus = 'PENDING_CONFIRMATION' | 'CONFIRMED' | 'RECEIVED' | 'CANCELLED' | 'EXPIRED'
-
-export interface Order {
-  orderId: string
-  sourceReservationId: string
-  productId: string
-  productName: string
-  productModel: string
-  equipmentDisplayCode: string | null
-  status: OrderStatus
-  effectiveStatus: OrderStatus
-  startDate: string
-  endDate: string
-  expiresAt: string
-  priceSnapshot: PriceSnapshot
-  createdAt: string
-  confirmedAt: string | null
-  receivedAt: string | null
-  cancelledAt: string | null
-  expiredAt: string | null
-}
-
-export interface OrderHistory {
-  fromStatus: OrderStatus | null
-  toStatus: OrderStatus
-  reason: string | null
-  createdAt: string
-}
-
-export interface OrderDetail extends Order {
-  statusHistory: OrderHistory[]
-}
-
 export interface ConversationCreated {
   id: string
   timezone: string
@@ -248,9 +165,6 @@ export interface RecommendationCard {
   salePrice: string | null
   availableQuantity: number | null
   storeSkus: StoreSku[]
-  dailyRate?: string | null
-  fixedDeposit?: string | null
-  availableCount: number | null
   useCases: ProductUseCase[]
 }
 export interface RecommendationSection {
@@ -261,20 +175,18 @@ export interface RecommendationSection {
 }
 export interface FollowUpOption { value: string; label: string }
 export interface FollowUpQuestion {
-  field: 'use_case' | 'rental_period'
+  field: 'use_case'
   text: string
   options: FollowUpOption[]
 }
 export interface RecommendationPresentation {
   mode: 'explore' | 'recommend' | 'purchase'
-  intro?: string
+  intro: string
   sections: RecommendationSection[]
-  rentalPeriod: RentalPeriodValue | null
   followUp: FollowUpQuestion | null
   closing?: string | null
   purchaseQuantity?: number | null
 }
-export interface RentalPeriodValue { startDate: string; endDate: string }
 export interface MessageRun {
   runId: string
   conversationId: string

@@ -47,8 +47,7 @@ class CatalogApplicationServiceTest {
         CatalogMapper mapper = mock(CatalogMapper.class);
         ProductRow product = new ProductRow(
                 PRODUCT_ID, CATEGORY_ID, "laptop", "MacBook Pro 14", "Apple",
-                "MacBook Pro 14", "移动剪辑工作站", new BigDecimal("160"),
-                new BigDecimal("5000"), 1
+                "MacBook Pro 14", "移动剪辑工作站"
         );
         when(mapper.searchProducts(
                 null, "laptop", null, null, USE_CASE_ID, null, null, 0, 20

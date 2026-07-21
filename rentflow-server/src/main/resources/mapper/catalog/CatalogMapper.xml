@@ -27,8 +27,14 @@
                   AND uc.enabled = TRUE
             )
         </if>
-        <if test="maxDailyRate != null">
-            AND p.daily_rate &lt;= #{maxDailyRate}
+        <if test="maxPrice != null">
+            AND EXISTS (
+                SELECT 1
+                FROM product_skus ps
+                WHERE ps.product_id = p.id
+                  AND ps.enabled = TRUE
+                  AND ps.sale_price &lt;= #{maxPrice}
+            )
         </if>
         <if test="keyword != null">
             AND (
@@ -40,8 +46,7 @@
     </sql>
 
     <select id="searchProducts" resultType="com.rentflow.catalog.infrastructure.ProductRow">
-        SELECT p.id, p.category_id, p.equipment_role, p.name, p.brand, p.model, p.description,
-               p.daily_rate, p.fixed_deposit, p.pricing_version
+        SELECT p.id, p.category_id, p.equipment_role, p.name, p.brand, p.model, p.description
         FROM products p
         WHERE <include refid="productFilter"/>
         ORDER BY

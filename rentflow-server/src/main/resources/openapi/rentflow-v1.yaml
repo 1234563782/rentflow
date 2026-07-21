@@ -2,17 +2,12 @@ openapi: 3.1.0
 info:
   title: RentFlow API
   version: 1.0.0
-  description: RentFlow V1 rental reservation API. All business timestamps include an offset and are stored as UTC.
+  description: RentFlow digital commerce API. Business timestamps include an offset and are stored as UTC.
 servers:
   - url: http://localhost:8080
 tags:
   - name: Authentication
   - name: Catalog
-  - name: Availability
-  - name: Pricing
-  - name: Reservations
-  - name: Orders
-  - name: Reviews
   - name: Notifications
   - name: Store
 security:
@@ -109,22 +104,12 @@ paths:
           in: query
           schema:
             $ref: '#/components/schemas/Ulid'
-        - name: maxDailyRate
+        - name: maxPrice
           in: query
-          description: Maximum daily rental rate per product.
+          description: Maximum enabled SKU sale price.
           schema:
             type: number
             exclusiveMinimum: 0
-        - name: startAt
-          in: query
-          description: Must be supplied together with endAt to include availability.
-          schema:
-            $ref: '#/components/schemas/Timestamp'
-        - name: endAt
-          in: query
-          description: Must be supplied together with startAt to include availability.
-          schema:
-            $ref: '#/components/schemas/Timestamp'
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
       responses:
@@ -153,119 +138,6 @@ paths:
                 $ref: '#/components/schemas/ProductDetail'
         '404':
           $ref: '#/components/responses/ProductNotFound'
-
-  /api/v1/availability/search:
-    post:
-      tags: [Availability]
-      operationId: searchAvailability
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AvailabilityRequest'
-      responses:
-        '200':
-          description: Point-in-time availability; reservation remains authoritative.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AvailabilityResponse'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '404':
-          $ref: '#/components/responses/ProductNotFound'
-
-  /api/v1/quotes:
-    post:
-      tags: [Pricing]
-      operationId: createQuote
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/QuoteRequest'
-      responses:
-        '201':
-          description: Immutable quote. Creating a quote does not lock inventory.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Quote'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/AuthenticationRequired'
-        '404':
-          $ref: '#/components/responses/ProductNotFound'
-
-  /api/v1/reservations/{reservationId}:
-    parameters:
-      - $ref: '#/components/parameters/ReservationId'
-    get:
-      tags: [Reservations]
-      operationId: getReservation
-      responses:
-        '200':
-          description: Owner reservation with persisted and effective status
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Reservation'
-        '401':
-          $ref: '#/components/responses/AuthenticationRequired'
-        '403':
-          $ref: '#/components/responses/AccessDenied'
-        '404':
-          $ref: '#/components/responses/ReservationNotFound'
-  /api/v1/products/{productId}/reviews:
-    parameters:
-      - $ref: '#/components/parameters/ProductId'
-    get:
-      tags: [Reviews]
-      operationId: listProductReviews
-      security: []
-      responses:
-        '200':
-          description: Product reviews sorted by newest first
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Review'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-    post:
-      tags: [Reviews]
-      operationId: createProductReview
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateReviewRequest'
-      responses:
-        '201':
-          description: Review created for a received order
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Review'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/AuthenticationRequired'
-        '409':
-          description: Review eligibility or idempotency conflict
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
 
   /api/v1/notifications:
     get:
@@ -305,160 +177,6 @@ paths:
       responses:
         '204':
           description: Notification marked read
-
-  /api/v1/orders:
-    post:
-      tags: [Orders]
-      operationId: createOrder
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateOrderRequest'
-      responses:
-        '201':
-          description: Pending order created with a concrete equipment hold
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Order'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/AuthenticationRequired'
-        '409':
-          description: Quote, inventory, or idempotency conflict
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                reservationExpired:
-                  value:
-                    code: RESERVATION_EXPIRED
-                    message: Reservation has expired
-                    correlationId: 01J00000000000000000090004
-                    details: {}
-                reservationConsumed:
-                  value:
-                    code: RESERVATION_STATE_CONFLICT
-                    message: Reservation cannot be consumed
-                    correlationId: 01J00000000000000000090005
-                    details: {}
-    get:
-      tags: [Orders]
-      operationId: listOrders
-      parameters:
-        - name: status
-          in: query
-          schema:
-            $ref: '#/components/schemas/OrderStatus'
-        - $ref: '#/components/parameters/Page'
-        - $ref: '#/components/parameters/Size'
-      responses:
-        '200':
-          description: Current user orders sorted by createdAt DESC and orderId DESC
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OrderPage'
-        '401':
-          $ref: '#/components/responses/AuthenticationRequired'
-
-  /api/v1/orders/{orderId}:
-    parameters:
-      - $ref: '#/components/parameters/OrderId'
-    get:
-      tags: [Orders]
-      operationId: getOrder
-      responses:
-        '200':
-          description: Current user order detail
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OrderDetail'
-        '401':
-          $ref: '#/components/responses/AuthenticationRequired'
-        '403':
-          $ref: '#/components/responses/AccessDenied'
-        '404':
-          $ref: '#/components/responses/OrderNotFound'
-
-  /api/v1/orders/{orderId}/confirm:
-    parameters:
-      - $ref: '#/components/parameters/OrderId'
-    post:
-      tags: [Orders]
-      operationId: confirmOrder
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      responses:
-        '200':
-          description: Pending order confirmed, inventory hold consumed, and concrete equipment assigned
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Order'
-        '401':
-          $ref: '#/components/responses/AuthenticationRequired'
-        '403':
-          $ref: '#/components/responses/AccessDenied'
-        '404':
-          $ref: '#/components/responses/OrderNotFound'
-        '409':
-          $ref: '#/components/responses/StateConflict'
-
-  /api/v1/orders/{orderId}/receive:
-    parameters:
-      - $ref: '#/components/parameters/OrderId'
-    post:
-      tags: [Orders]
-      operationId: receiveOrder
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      responses:
-        '200':
-          description: Confirmed order received by its owner after the rental starts
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Order'
-        '401':
-          $ref: '#/components/responses/AuthenticationRequired'
-        '403':
-          $ref: '#/components/responses/AccessDenied'
-        '404':
-          $ref: '#/components/responses/OrderNotFound'
-        '409':
-          $ref: '#/components/responses/StateConflict'
-
-  /api/v1/orders/{orderId}/cancel:
-    parameters:
-      - $ref: '#/components/parameters/OrderId'
-    post:
-      tags: [Orders]
-      operationId: cancelOrder
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      responses:
-        '200':
-          description: Pending order cancelled and inventory hold released
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Order'
-        '401':
-          $ref: '#/components/responses/AuthenticationRequired'
-        '403':
-          $ref: '#/components/responses/AccessDenied'
-        '404':
-          $ref: '#/components/responses/OrderNotFound'
-        '409':
-          $ref: '#/components/responses/StateConflict'
 
   /api/v1/store/products/{productId}/skus:
     get:
@@ -663,12 +381,6 @@ components:
       required: true
       schema:
         $ref: '#/components/schemas/Ulid'
-    ReservationId:
-      name: reservationId
-      in: path
-      required: true
-      schema:
-        $ref: '#/components/schemas/Ulid'
     OrderId:
       name: orderId
       in: path
@@ -758,28 +470,6 @@ components:
             message: Product was not found
             correlationId: 01J00000000000000000090009
             details: {}
-    ReservationNotFound:
-      description: Reservation not found
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          example:
-            code: RESERVATION_NOT_FOUND
-            message: Reservation was not found
-            correlationId: 01J00000000000000000090010
-            details: {}
-    OrderNotFound:
-      description: Order not found
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          example:
-            code: ORDER_NOT_FOUND
-            message: Order was not found
-            correlationId: 01J00000000000000000090011
-            details: {}
     StateConflict:
       description: Resource state does not permit the operation
       content:
@@ -787,8 +477,8 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
           example:
-            code: RESERVATION_STATE_CONFLICT
-            message: Reservation state does not permit this operation
+            code: STORE_ORDER_STATE_CONFLICT
+            message: Store order state does not permit this operation
             correlationId: 01J00000000000000000090012
             details: {}
 
@@ -898,7 +588,7 @@ components:
     ProductSummary:
       type: object
       additionalProperties: false
-      required: [productId, categoryId, equipmentRole, name, brand, model, dailyRate, fixedDeposit, useCases]
+      required: [productId, categoryId, equipmentRole, name, brand, model, useCases]
       properties:
         productId:
           $ref: '#/components/schemas/Ulid'
@@ -913,14 +603,6 @@ components:
           type: string
         model:
           type: string
-        dailyRate:
-          $ref: '#/components/schemas/Money'
-        fixedDeposit:
-          $ref: '#/components/schemas/Money'
-        availableCount:
-          type: integer
-          minimum: 0
-          description: Present only when a complete rental period was supplied.
         useCases:
           type: array
           items:
@@ -928,7 +610,7 @@ components:
     ProductDetail:
       type: object
       additionalProperties: false
-      required: [productId, categoryId, equipmentRole, name, brand, model, description, dailyRate, fixedDeposit, useCases]
+      required: [productId, categoryId, equipmentRole, name, brand, model, description, useCases]
       properties:
         productId:
           $ref: '#/components/schemas/Ulid'
@@ -945,10 +627,6 @@ components:
           type: string
         description:
           type: string
-        dailyRate:
-          $ref: '#/components/schemas/Money'
-        fixedDeposit:
-          $ref: '#/components/schemas/Money'
         useCases:
           type: array
           items:
@@ -962,309 +640,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ProductSummary'
-        page:
-          type: integer
-          minimum: 0
-        size:
-          type: integer
-          minimum: 1
-        totalElements:
-          type: integer
-          format: int64
-          minimum: 0
-        totalPages:
-          type: integer
-          minimum: 0
-    RentalPeriod:
-      type: object
-      additionalProperties: false
-      required: [startAt, endAt]
-      properties:
-        startAt:
-          $ref: '#/components/schemas/Timestamp'
-        endAt:
-          $ref: '#/components/schemas/Timestamp'
-    AvailabilityRequest:
-      type: object
-      additionalProperties: false
-      required: [productId, startAt, endAt]
-      properties:
-        productId:
-          $ref: '#/components/schemas/Ulid'
-        startAt:
-          $ref: '#/components/schemas/Timestamp'
-        endAt:
-          $ref: '#/components/schemas/Timestamp'
-    AvailabilityResponse:
-      type: object
-      additionalProperties: false
-      required: [productId, startAt, endAt, available, availableCount, checkedAt]
-      properties:
-        productId:
-          $ref: '#/components/schemas/Ulid'
-        startAt:
-          $ref: '#/components/schemas/Timestamp'
-        endAt:
-          $ref: '#/components/schemas/Timestamp'
-        available:
-          type: boolean
-        availableCount:
-          type: integer
-          minimum: 0
-        checkedAt:
-          $ref: '#/components/schemas/Timestamp'
-    QuoteRequest:
-      $ref: '#/components/schemas/AvailabilityRequest'
-    PriceSnapshot:
-      type: object
-      additionalProperties: false
-      required: [currency, pricingVersion, pricingRule, billingDays, dailyRate, rentalAmount, depositAmount, totalAmount, roundingMode]
-      properties:
-        currency:
-          type: string
-          const: CNY
-        pricingVersion:
-          type: integer
-          format: int64
-          minimum: 1
-        pricingRule:
-          type: string
-          example: CEIL_24H_FIXED_DEPOSIT
-        billingDays:
-          type: integer
-          minimum: 1
-        dailyRate:
-          $ref: '#/components/schemas/Money'
-        rentalAmount:
-          $ref: '#/components/schemas/Money'
-        depositAmount:
-          $ref: '#/components/schemas/Money'
-        totalAmount:
-          $ref: '#/components/schemas/Money'
-        roundingMode:
-          type: string
-          const: HALF_UP
-    Quote:
-      type: object
-      additionalProperties: false
-      required: [quoteId, productId, startAt, endAt, expiresAt, priceSnapshot]
-      properties:
-        quoteId:
-          $ref: '#/components/schemas/Ulid'
-        productId:
-          $ref: '#/components/schemas/Ulid'
-        startAt:
-          $ref: '#/components/schemas/Timestamp'
-        endAt:
-          $ref: '#/components/schemas/Timestamp'
-        expiresAt:
-          $ref: '#/components/schemas/Timestamp'
-        priceSnapshot:
-          $ref: '#/components/schemas/PriceSnapshot'
-    CreateReservationRequest:
-      type: object
-      additionalProperties: false
-      required: [quoteId]
-      properties:
-        quoteId:
-          $ref: '#/components/schemas/Ulid'
-    ReservationStatus:
-      type: string
-      enum: [ACTIVE, CONSUMED, RELEASED, EXPIRED]
-    Reservation:
-      type: object
-      additionalProperties: false
-      required: [reservationId, sourceQuoteId, productId, equipmentDisplayCode, startAt, endAt, expiresAt, status, effectiveStatus, priceSnapshot]
-      properties:
-        reservationId:
-          $ref: '#/components/schemas/Ulid'
-        sourceQuoteId:
-          $ref: '#/components/schemas/Ulid'
-        productId:
-          $ref: '#/components/schemas/Ulid'
-        equipmentDisplayCode:
-          type: [string, 'null']
-          description: Assigned before dispatch; null while the reservation only holds product capacity.
-        startAt:
-          $ref: '#/components/schemas/Timestamp'
-        endAt:
-          $ref: '#/components/schemas/Timestamp'
-        expiresAt:
-          $ref: '#/components/schemas/Timestamp'
-        status:
-          $ref: '#/components/schemas/ReservationStatus'
-        effectiveStatus:
-          $ref: '#/components/schemas/ReservationStatus'
-        priceSnapshot:
-          $ref: '#/components/schemas/PriceSnapshot'
-    CreateReviewRequest:
-      type: object
-      additionalProperties: false
-      required: [orderId, rating, content]
-      properties:
-        orderId:
-          $ref: '#/components/schemas/Ulid'
-        rating:
-          type: integer
-          minimum: 1
-          maximum: 5
-        content:
-          type: string
-          minLength: 1
-          maxLength: 1000
-    Review:
-      type: object
-      additionalProperties: false
-      required: [reviewId, productId, orderId, rating, content, createdAt]
-      properties:
-        reviewId:
-          $ref: '#/components/schemas/Ulid'
-        productId:
-          $ref: '#/components/schemas/Ulid'
-        orderId:
-          $ref: '#/components/schemas/Ulid'
-        rating:
-          type: integer
-          minimum: 1
-          maximum: 5
-        content:
-          type: string
-        createdAt:
-          $ref: '#/components/schemas/Timestamp'
-    CreateOrderRequest:
-      type: object
-      additionalProperties: false
-      required: [quoteId]
-      properties:
-        quoteId:
-          $ref: '#/components/schemas/Ulid'
-    OrderStatus:
-      type: string
-      enum: [PENDING_CONFIRMATION, CONFIRMED, RECEIVED, CANCELLED, EXPIRED]
-    Order:
-      type: object
-      additionalProperties: false
-      required: [orderId, sourceReservationId, productId, productName, productModel, equipmentDisplayCode, status, effectiveStatus, startAt, endAt, expiresAt, priceSnapshot, createdAt, confirmedAt, receivedAt, cancelledAt, expiredAt]
-      properties:
-        orderId:
-          $ref: '#/components/schemas/Ulid'
-        sourceReservationId:
-          $ref: '#/components/schemas/Ulid'
-        productId:
-          $ref: '#/components/schemas/Ulid'
-        productName:
-          type: string
-        productModel:
-          type: string
-        equipmentDisplayCode:
-          type: [string, 'null']
-          description: Concrete unit assigned before dispatch; null until assignment.
-        status:
-          $ref: '#/components/schemas/OrderStatus'
-        effectiveStatus:
-          $ref: '#/components/schemas/OrderStatus'
-        startAt:
-          $ref: '#/components/schemas/Timestamp'
-        endAt:
-          $ref: '#/components/schemas/Timestamp'
-        expiresAt:
-          $ref: '#/components/schemas/Timestamp'
-        priceSnapshot:
-          $ref: '#/components/schemas/PriceSnapshot'
-        createdAt:
-          $ref: '#/components/schemas/Timestamp'
-        confirmedAt:
-          oneOf:
-            - $ref: '#/components/schemas/Timestamp'
-            - type: 'null'
-        receivedAt:
-          oneOf:
-            - $ref: '#/components/schemas/Timestamp'
-            - type: 'null'
-        cancelledAt:
-          oneOf:
-            - $ref: '#/components/schemas/Timestamp'
-            - type: 'null'
-        expiredAt:
-          oneOf:
-            - $ref: '#/components/schemas/Timestamp'
-            - type: 'null'
-    OrderStatusHistory:
-      type: object
-      additionalProperties: false
-      required: [toStatus, createdAt]
-      properties:
-        fromStatus:
-          oneOf:
-            - $ref: '#/components/schemas/OrderStatus'
-            - type: 'null'
-        toStatus:
-          $ref: '#/components/schemas/OrderStatus'
-        reason:
-          type: [string, 'null']
-        createdAt:
-          $ref: '#/components/schemas/Timestamp'
-    OrderDetail:
-      type: object
-      additionalProperties: false
-      required: [orderId, sourceReservationId, productId, productName, productModel, equipmentDisplayCode, status, effectiveStatus, startAt, endAt, expiresAt, priceSnapshot, createdAt, confirmedAt, receivedAt, cancelledAt, expiredAt, statusHistory]
-      properties:
-        orderId:
-          $ref: '#/components/schemas/Ulid'
-        sourceReservationId:
-          $ref: '#/components/schemas/Ulid'
-        productId:
-          $ref: '#/components/schemas/Ulid'
-        productName:
-          type: string
-        productModel:
-          type: string
-        equipmentDisplayCode:
-          type: [string, 'null']
-          description: Concrete unit assigned before dispatch; null until assignment.
-        status:
-          $ref: '#/components/schemas/OrderStatus'
-        effectiveStatus:
-          $ref: '#/components/schemas/OrderStatus'
-        startAt:
-          $ref: '#/components/schemas/Timestamp'
-        endAt:
-          $ref: '#/components/schemas/Timestamp'
-        expiresAt:
-          $ref: '#/components/schemas/Timestamp'
-        priceSnapshot:
-          $ref: '#/components/schemas/PriceSnapshot'
-        createdAt:
-          $ref: '#/components/schemas/Timestamp'
-        confirmedAt:
-          oneOf:
-            - $ref: '#/components/schemas/Timestamp'
-            - type: 'null'
-        receivedAt:
-          oneOf:
-            - $ref: '#/components/schemas/Timestamp'
-            - type: 'null'
-        cancelledAt:
-          oneOf:
-            - $ref: '#/components/schemas/Timestamp'
-            - type: 'null'
-        expiredAt:
-          oneOf:
-            - $ref: '#/components/schemas/Timestamp'
-            - type: 'null'
-        statusHistory:
-          type: array
-          items:
-            $ref: '#/components/schemas/OrderStatusHistory'
-    OrderPage:
-      type: object
-      additionalProperties: false
-      required: [items, page, size, totalElements, totalPages]
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/Order'
         page:
           type: integer
           minimum: 0
@@ -1583,21 +958,18 @@ components:
             - AUTHENTICATION_REQUIRED
             - ACCESS_DENIED
             - PRODUCT_NOT_FOUND
-            - RESERVATION_NOT_FOUND
-            - ORDER_NOT_FOUND
-            - INVENTORY_NOT_AVAILABLE
-            - RESERVATION_EXPIRED
-            - RESERVATION_STATE_CONFLICT
-            - RENTAL_ALREADY_STARTED
-            - QUOTE_NOT_FOUND
-            - QUOTE_EXPIRED
-            - QUOTE_MISMATCH
-            - QUOTE_ALREADY_CONSUMED
             - IDEMPOTENCY_CONFLICT
             - IDEMPOTENCY_IN_PROGRESS
-            - ACTIVE_RESERVATION_LIMIT_EXCEEDED
-            - ORDER_EXPIRED
-            - ORDER_STATE_CONFLICT
+            - INVALID_ADDRESS
+            - INVALID_QUANTITY
+            - INVALID_ORDER_STATUS
+            - SKU_NOT_FOUND
+            - SKU_DISABLED
+            - INSUFFICIENT_STOCK
+            - ORDER_PAYMENT_EXPIRED
+            - STORE_ORDER_STATE_CONFLICT
+            - STORE_RESOURCE_NOT_FOUND
+            - STORE_REVIEW_NOT_ELIGIBLE
             - INTERNAL_ERROR
         message:
           type: string
